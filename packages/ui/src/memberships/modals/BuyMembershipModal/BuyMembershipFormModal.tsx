@@ -21,7 +21,6 @@ import {
   ToggleCheckbox,
 } from '@/common/components/forms'
 import { Arrow } from '@/common/components/icons'
-import { LinkSymbol } from '@/common/components/icons/symbols'
 import { Loading } from '@/common/components/Loading'
 import {
   ModalFooter,
@@ -33,7 +32,6 @@ import {
   ScrolledModalContainer,
   TransactionInfoContainer,
 } from '@/common/components/Modal'
-import { TooltipExternalLink } from '@/common/components/Tooltip'
 import { TransactionInfo } from '@/common/components/TransactionInfo'
 import { TextMedium } from '@/common/components/typography'
 import { definedValues } from '@/common/utils'
