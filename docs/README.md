@@ -6,6 +6,8 @@ In order to work on Pioneer 2 you'll need following tools for development and te
 
 - [nodejs](https://nodejs.org) `v14.x`
 - [yarn classic](https://classic.yarnpkg.com/en/docs/install) package manager `v1.22.x`
+- [eslint](https://eslint.org/blog/2021/09/eslint-v8.0.0-rc.0-released/) `v8`
+- [prettier](https://prettier.io/)
 
 In order to interact with the Joystream ecosystem
 
