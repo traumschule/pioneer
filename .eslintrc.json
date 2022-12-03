@@ -13,8 +13,7 @@
     "plugin:import/typescript"
   ],
   "plugins": [
-    "import",
-    "react-hooks"
+    "import"
   ],
   "ignorePatterns": [".eslintrc.js"],
   "parser": "@typescript-eslint/parser",
