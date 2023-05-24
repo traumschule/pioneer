@@ -328,7 +328,6 @@ const mappers: Partial<Record<ProposalDetailsKeys, Mapper<any, any>>> = {
   member: memberMapper,
   amount: amountMapper(),
   count: countMapper(),
-  proposal: proposalLinkMapper,
   openingId: openingLinkMapper,
   channelCashoutsEnabled: booleanMapper,
   minCashoutAllowed: amountMapper('Minimal Cashout'),
