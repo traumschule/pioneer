@@ -142,6 +142,7 @@ export const SideBarContent = () => {
               Settings
             </NavigationLink>
           </NavigationLinksItem>
+	  {/**
           <NavigationLinksItem>
             <NavigationExpandButton active={comingSoonListActive} onClick={toggleComingSoonListActive}>
               <Arrow direction="down" size="20" className="nav-icon" />
@@ -199,6 +200,7 @@ export const SideBarContent = () => {
               </motion.div>
             )}
           </AnimatePresence>
+	  **/}
         </NavigationLinks>
       </AnimateSharedLayout>
       <ProfileComponent />
