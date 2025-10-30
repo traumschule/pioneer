@@ -21,8 +21,8 @@ const CircleProgressBar = ({ progress }: CircleProgressBarProps) => {
     <svg width="20" height="20" viewBox="0 0 20 20" style={{ transform: 'rotate(-90deg)' }}>
       <circle cx="10" cy="10" r="9" fill="none" stroke={Colors.Black[200]} strokeWidth="2" />
       <circle
-        stroke-dasharray="100"
-        stroke-dashoffset={100 - progress * 100}
+        strokeDasharray="100"
+        strokeDashoffset={100 - progress * 100}
         cx="10"
         cy="10"
         r="9"

@@ -57,6 +57,22 @@ export const ThreadCard = ({ thread, className, watchlistButton }: ThreadCardPro
   )
 }
 
+<<<<<<< HEAD
+=======
+const ThreadCardFooter = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-direction: row-reverse;
+
+  @media (max-width: 419px) {
+    align-items: start;
+    flex-direction: column-reverse;
+    row-gap: 16px;
+  }
+`
+
+>>>>>>> 37558c22a (update the last post of forum)
 const Box = styled(GhostRouterLink)<{ $isArchived: boolean }>`
   ${({ $isArchived }) => ($isArchived ? `background-color: ${Colors.Black[50]}` : '')};
   display: grid;
