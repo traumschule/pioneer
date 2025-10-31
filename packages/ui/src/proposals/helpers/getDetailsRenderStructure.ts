@@ -20,7 +20,6 @@ import {
   ProposalType,
   SignalTextDetail,
   CountDetail,
-  ProposalDetail,
   OpeningLinkDetail,
   UpdateChannelPayoutsDetail,
   UpdatePalletFrozenStatusDetail,
