@@ -48,11 +48,10 @@ const RewardHistoryItemWrappers = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
-  border: 1px solid ${Colors.Black[500]};
+  border: 1px solid ${Colors.Black[100]};
   border-radius: ${BorderRad.s};
   cursor: pointer;
   transition: ${Transitions.all};
-  background-color: #e8edf6;
 
   ${TableListItemAsLinkHover}
 `
@@ -65,12 +64,12 @@ export const AccountItemWrap = styled.div`
   justify-items: start;
   align-items: center;
   width: 100%;
-  height: ${Sizes.validatorHeight};
-  padding: 16px 8px 16px 16px;
-  margin-left: -1px;
+  height: ${Sizes.accountHeight};
+  padding: 16px;
+  margin: -1px;
 
   ${Skeleton} {
-    min-width: 100%;
+    min-width: 80%;
     height: 1.2rem;
   }
 `

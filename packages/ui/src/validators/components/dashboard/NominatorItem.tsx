@@ -36,11 +36,11 @@ export const NominatorAccountItem = ({ account, block, dateLabel, lessInfo }: Ac
         <AccountInfo account={account} />
         {block ? <BlockInfo block={block} lessInfo={lessInfo} /> : ''}
         <TextSmall>
-          <div>{dateLabel}</div>
-          <div>
+          <span>{dateLabel}</span>
+          <span>
             <BlockIcon />
             {block}{' '}
-          </div>
+          </span>
         </TextSmall>
         <TokenValue
           value={sumBN(balance?.recoverable, balance?.vestedClaimable)}
@@ -55,11 +55,9 @@ const NominatorItemWarpper = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
-  border: 1px solid ${Colors.Black[500]};
+  border: 1px solid ${Colors.Black[100]};
   border-radius: ${BorderRad.s};
-  background-color: #e8edf6;
   cursor: pointer;
-  height: ${Sizes.validatorHeight};
   transition: ${Transitions.all};
 
   ${TableListItemAsLinkHover}
@@ -70,16 +68,15 @@ export const NominatorItemWarp = styled.div`
   grid-template-columns: 276px repeat(2, 213px) 133px;
   grid-template-rows: 1fr;
   justify-content: space-between;
-  justify-items: center;
+  justify-items: start;
   align-items: center;
   width: 100%;
   height: ${Sizes.accountHeight};
-  padding: 16px 8px 16px 16px;
-  margin-left: -1px;
-  background-color: #e8edf6;
+  padding: 16px;
+  margin: -1px;
 
   ${Skeleton} {
-    min-width: 100%;
+    min-width: 80%;
     height: 1.2rem;
   }
 `

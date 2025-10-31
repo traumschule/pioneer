@@ -70,7 +70,7 @@ export function Nominators() {
         <List>
           {!isLoading ? (
             sortedAccounts.map((account) => (
-              <ListItem key={account.address} borderless>
+              <ListItem key={account.address}>
                 <NominatorAccountItem account={account} dateLabel="create" />
               </ListItem>
             ))
@@ -97,17 +97,23 @@ const AccountsWrap = styled.div`
     'accountslist';
   grid-row-gap: 4px;
   width: 100%;
+
+  ${List} {
+    gap: 8px;
+  }
+  ${ListItem} {
+    background: ${Colors.Black[50]};
+  }
 `
 
 const ListHeaders = styled.div`
   display: grid;
   grid-area: accountstablenav;
   grid-template-rows: 1fr;
-  grid-template-columns: 276px repeat(2, 128px) 104px;
+  grid-template-columns: 170px repeat(2, 120px) 124px;
   justify-content: space-between;
   width: 100%;
-  padding-left: 16px;
-  padding-right: 8px;
+  padding: 0 16px;
 `
 
 export const ListHeader = styled.span`
@@ -115,7 +121,7 @@ export const ListHeader = styled.span`
   justify-content: flex-end;
   align-items: center;
   align-content: center;
-  justify-self: end;
+  justify-self: start;
   width: fit-content;
   font-size: 10px;
   line-height: 16px;

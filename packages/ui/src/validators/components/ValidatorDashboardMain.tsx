@@ -3,76 +3,54 @@ import styled from 'styled-components'
 
 import { ContentWithTabs } from '@/common/components/page/PageContent'
 import { Tabs } from '@/common/components/Tabs'
-import { Colors } from '@/common/constants'
 
 import { Nominators } from './Nominators'
 import { Overview } from './OverView'
 import { RewardHistory } from './RewardHistory'
 import { SlashingHistory } from './SlashingHistory'
 
+type ValidatorDashboardTab = 'overview' | 'nominators' | 'rewards' | 'slashing'
+
 export function ValidatorDashboardMain() {
-  const [IsOverview, setIsOverview] = useState(true)
-  const [IsNominators, setIsNominators] = useState(false)
-  const [IsRewards, setIsRewards] = useState(false)
-  const [IsSlashing, setIsSlashing] = useState(false)
+  const [activeTab, setActiveTab] = useState<ValidatorDashboardTab>('overview')
 
   const tabs = [
     {
       title: 'Overview',
-      onClick: () => {
-        setIsNominators(false)
-        setIsRewards(false)
-        setIsSlashing(false)
-        !IsOverview && setIsOverview(true)
-      },
-      active: IsOverview,
+      active: activeTab === 'overview',
+      onClick: () => setActiveTab('overview'),
     },
     {
       title: 'Nominators',
-      onClick: () => {
-        setIsOverview(false)
-        setIsRewards(false)
-        setIsSlashing(false)
-        !IsNominators && setIsNominators(true)
-      },
-      active: IsNominators,
+      active: activeTab === 'nominators',
+      onClick: () => setActiveTab('nominators'),
     },
     {
       title: 'Rewards History',
-      onClick: () => {
-        setIsOverview(false)
-        setIsSlashing(false)
-        setIsNominators(false)
-        !IsRewards && setIsRewards(true)
-      },
-      active: IsRewards,
+      active: activeTab === 'rewards',
+      onClick: () => setActiveTab('rewards'),
     },
     {
       title: 'Slashing History',
-      onClick: () => {
-        setIsOverview(false)
-        setIsRewards(false)
-        setIsNominators(false)
-        !IsSlashing && setIsSlashing(true)
-      },
-      active: IsSlashing,
+      active: activeTab === 'slashing',
+      onClick: () => setActiveTab('slashing'),
     },
   ]
 
   return (
     <ContentWithTabs>
       <Tabs tabs={tabs} />
-      <ValidatorDasbaordWarp>
-        {IsOverview && <Overview />}
-        {IsNominators && <Nominators />}
-        {IsRewards && <RewardHistory />}
-        {IsSlashing && <SlashingHistory />}
-      </ValidatorDasbaordWarp>
+      <ValidatorDashboardWrap>
+        {activeTab === 'overview' && <Overview />}
+        {activeTab === 'nominators' && <Nominators />}
+        {activeTab === 'rewards' && <RewardHistory />}
+        {activeTab === 'slashing' && <SlashingHistory />}
+      </ValidatorDashboardWrap>
     </ContentWithTabs>
   )
 }
 
-const ValidatorDasbaordWarp = styled.div`
+const ValidatorDashboardWrap = styled.div`
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: 16px auto;
@@ -81,25 +59,4 @@ const ValidatorDasbaordWarp = styled.div`
     'accountslist';
   grid-row-gap: 4px;
   width: 100%;
-`
-export const ListHeader = styled.span`
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  align-content: center;
-  justify-self: end;
-  width: fit-content;
-  font-size: 10px;
-  line-height: 16px;
-  font-weight: 700;
-  color: ${Colors.Black[400]};
-  text-transform: uppercase;
-  text-align: right;
-  user-select: none;
-  cursor: pointer;
-
-  &:first-child {
-    text-align: left;
-    justify-self: start;
-  }
 `

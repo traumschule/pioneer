@@ -57,15 +57,15 @@ export const AccountItemWrap = styled.div`
   grid-template-columns: 276px repeat(2, 128px) 104px;
   grid-template-rows: 1fr;
   justify-content: space-between;
-  justify-items: end;
+  justify-items: start;
   align-items: center;
   width: 100%;
   height: ${Sizes.accountHeight};
-  padding: 16px 8px 16px 16px;
-  margin-left: -1px;
+  padding: 16px;
+  margin: -1px;
 
   ${Skeleton} {
-    min-width: 100%;
+    min-width: 80%;
     height: 1.2rem;
   }
 `

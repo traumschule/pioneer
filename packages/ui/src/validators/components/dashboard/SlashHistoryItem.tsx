@@ -46,11 +46,9 @@ const SlashHistoryItemWarppers = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
-  border: 1px solid ${Colors.Black[500]};
+  border: 1px solid ${Colors.Black[100]};
   border-radius: ${BorderRad.s};
-  background-color: #e8edf6;
   cursor: pointer;
-  height: ${Sizes.validatorHeight};
   transition: ${Transitions.all};
 
   ${TableListItemAsLinkHover}
@@ -65,11 +63,11 @@ export const AccountItemWrap = styled.div`
   align-items: center;
   width: 100%;
   height: ${Sizes.accountHeight};
-  padding: 16px 8px 16px 16px;
-  margin-left: -1px;
+  padding: 16px;
+  margin: -1px;
 
   ${Skeleton} {
-    min-width: 100%;
+    min-width: 80%;
     height: 1.2rem;
   }
 `
