@@ -258,19 +258,10 @@ export const ForumPostAuthor = styled.div``
 export const ForumPostRow = styled.div`
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-start;
   width: 100%;
 
   ${ForumPostAuthor}, ${ButtonsGroup}, ${BlockTimeWrapper} {
     flex: 50%;
-  }
-
-  ${ForumPostAuthor}, ${ButtonsGroup}:first-of-type {
-    justify-content: flex-start;
-  }
-
-  ${BlockTimeWrapper}, ${ButtonsGroup}:last-of-type {
-    justify-content: flex-end;
   }
 `
 
