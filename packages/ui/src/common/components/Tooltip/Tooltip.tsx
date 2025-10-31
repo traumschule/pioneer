@@ -48,7 +48,6 @@ export interface DarkTooltipInnerItemProps {
 export const Tooltip = ({
   absolute,
   maxWidth,
-  placement,
   children,
   tooltipText,
   tooltipOpen = false,

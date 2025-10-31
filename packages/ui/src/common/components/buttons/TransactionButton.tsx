@@ -4,14 +4,14 @@ import { ReactElement } from 'react-markdown/lib/react-markdown'
 import { useResponsive } from '@/common/hooks/useResponsive'
 import { useTransactionStatus } from '@/common/hooks/useTransactionStatus'
 
-import { Tooltip } from '../Tooltip'
+import { Tooltip, TooltipContentProp } from '../Tooltip'
 
 import { ButtonGhost, ButtonPrimary, ButtonProps, ButtonSecondary } from '.'
 
 interface WrapperProps {
   children: ReactNode
   isResponsive?: boolean
-  tooltip: { [key: string]: string }
+  tooltip?: TooltipContentProp
 }
 
 export const TransactionButtonWrapper = ({ children, isResponsive, tooltip }: WrapperProps) => {
@@ -39,18 +39,19 @@ type StyleOption = 'primary' | 'ghost' | 'secondary'
 
 interface TransactionButtonProps extends ButtonProps {
   style: StyleOption
-  tooltip: { [key: string]: string }
+  disabled?: boolean
   isResponsive?: boolean
+  tooltip?: TooltipContentProp
 }
 
-export const TransactionButton = ({ isResponsive, disabled, style, ...props }: TransactionButtonProps) => {
+export const TransactionButton = ({ isResponsive, disabled, style, tooltip, ...props }: TransactionButtonProps) => {
   const { isTransactionPending } = useTransactionStatus()
 
   const Button = buttonTypes[style]
 
   return (
-    <TransactionButtonWrapper isResponsive={isResponsive} tooltip={props.tooltip}>
-      <Button {...props} disabled={isTransactionPending || props.disabled} />
+    <TransactionButtonWrapper isResponsive={isResponsive} tooltip={tooltip}>
+      <Button {...props} disabled={isTransactionPending || disabled} />
     </TransactionButtonWrapper>
   )
 }
