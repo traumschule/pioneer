@@ -50,12 +50,11 @@ export const useLocalStorage = <T>(key?: string) => {
     return () => {
       document.removeEventListener(`storage_event_${key}`, handleEventOnce)
     }
-  }, [])
+  }, [key])
 
   const dispatch = useCallback(
     (setStateAction: T | ((prevState?: T) => T)) => {
       const value = isFunction(setStateAction) ? setStateAction(getItem(key)) : setStateAction
-      setState(value)
       setItem(key, value)
       document.dispatchEvent(new CustomEvent(`storage_event_${key}`, {}))
     },
