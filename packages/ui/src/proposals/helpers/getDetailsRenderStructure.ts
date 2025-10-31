@@ -260,15 +260,6 @@ const hashMapper =
     return [{ label, value, tooltip, renderType: 'Hash' }]
   }
 
-const proposalLinkMapper: Mapper<ProposalDetail, 'proposal'> = (value) => {
-  return [
-    {
-      label: 'Proposal',
-      value,
-      renderType: 'ProposalLink',
-    },
-  ]
-}
 const openingLinkMapper: Mapper<OpeningLinkDetail, 'openingId'> = (value) => {
   return [
     {
