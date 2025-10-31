@@ -28,7 +28,7 @@ export const BlockInfo = ({ block, lessInfo, inline }: BlockInfoProp) => {
         <span>
           {formatTokenValue(block.number)} {lessInfo && 'block'}
         </span>
-        {/* {!lessInfo && <BlockNetworkInfo>on {block.network} network</BlockNetworkInfo>} */}
+        {!lessInfo && <BlockNetworkInfo>on {block.network} network</BlockNetworkInfo>}
       </BlockInfoContainer>
     </BlockLink>
   )
@@ -62,4 +62,6 @@ export const BlockInfoContainer = styled.span<Omit<BlockInfoProp, 'block'>>`
     `};
 `
 
-export const BlockNetworkInfo = styled(TextSmall).attrs({ lighter: true })``
+export const BlockNetworkInfo = styled(TextSmall).attrs({ lighter: true })`
+  font-size: 12px;
+`
