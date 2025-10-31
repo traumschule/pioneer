@@ -1,27 +1,36 @@
 import React, { FC } from 'react'
 import ReactPaginate from 'react-paginate'
+import { useHistory } from 'react-router'
 import styled from 'styled-components'
 
 import { Arrow } from '@/common/components/icons'
 import { BorderRad, Colors, Fonts, Transitions } from '@/common/constants/styles'
+import { useResponsive } from '@/common/hooks/useResponsive'
 
-interface PaginationProps {
+export interface PaginationProps {
   pageCount?: number
   handlePageChange: (page: number) => void
   page?: number
 }
 
 export const Pagination: FC<PaginationProps> = ({ pageCount = 0, handlePageChange, page }) => {
+  const history = useHistory()
+  const { size } = useResponsive()
+
   if (pageCount < 2) {
     return null
+  }
+  const pageChangeAction = (value: any) => {
+    history.push(`?page=${value.selected + 1}`)
+    handlePageChange(value.selected + 1)
   }
 
   return (
     <StyledPaginateContainer>
       <ReactPaginate
         pageCount={pageCount}
-        marginPagesDisplayed={3}
-        pageRangeDisplayed={3}
+        marginPagesDisplayed={size === 'xxs' || size === 'xs' ? 1 : 3}
+        pageRangeDisplayed={size === 'xxs' ? 1 : 3}
         containerClassName="pagination"
         pageLinkClassName="pagination__link"
         pageClassName="page"
@@ -32,7 +41,7 @@ export const Pagination: FC<PaginationProps> = ({ pageCount = 0, handlePageChang
         nextLabel={<Arrow direction="right" />}
         nextLinkClassName="pagination__link"
         previousLinkClassName="pagination__link pagination__link--previous"
-        onPageChange={(value) => handlePageChange(value.selected + 1)}
+        onPageChange={(value) => pageChangeAction(value)}
         forcePage={page && page - 1}
       />
     </StyledPaginateContainer>

@@ -19,8 +19,8 @@ const args: CandidateVoteProps = {
   member: {
     id: '0',
     name: 'Jennifer_123',
-    rootAccount: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY',
-    controllerAccount: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY',
+    rootAccount: 'j4W7rVcUCxi2crhhjRq46fNDRbVHTjJrz6bKxZwehEMQxZeSf',
+    controllerAccount: 'j4W7rVcUCxi2crhhjRq46fNDRbVHTjJrz6bKxZwehEMQxZeSf',
     handle: 'Jennifer_123',
     isVerified: true,
     isFoundingMember: true,
@@ -33,9 +33,9 @@ const args: CandidateVoteProps = {
   candidateId: '1',
   sumOfAllStakes: new BN(5000000),
   totalStake: new BN(500000),
-  ownStake: new BN(32000),
   votes: 20,
   index: 1,
+  myStake: new BN(32000),
   myVotes: [],
 }
 Default.args = args

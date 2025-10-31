@@ -4,6 +4,8 @@ import { useLocation } from 'react-router'
 import { NavLink, useRouteMatch } from 'react-router-dom'
 import styled, { css } from 'styled-components'
 
+import { useResponsive } from '@/common/hooks/useResponsive'
+
 import { BorderRad, Colors, Overflow, Transitions } from '../../../constants'
 
 interface NavigationLinkProps extends DisabledNavigationLinkProps {
@@ -30,6 +32,7 @@ export const NavigationLink = ({
   disabled,
   onClick,
 }: NavigationLinkProps) => {
+  const { openNavSidebar, setOpenNavSidebar } = useResponsive()
   const location = useLocation()
   const match = useRouteMatch(to ?? location.pathname)
   const isExternal = to.includes('http')
@@ -46,6 +49,7 @@ export const NavigationLink = ({
       activeClassName="active-page"
       onClick={(event: Event) => {
         onClick?.()
+        openNavSidebar && setOpenNavSidebar(false)
         if (disabled) {
           event.preventDefault()
         }
@@ -99,7 +103,7 @@ const ActivePageIndicator = styled(motion.div)`
   }
 `
 
-const NAVIGATION_LINK_GAP = 16
+export const NAVIGATION_LINK_GAP = 16
 
 const NavigationItemLinkChildren = styled.div`
   display: grid;
@@ -119,7 +123,21 @@ const NavigationItemLinkChildren = styled.div`
   ${Overflow.FullDots};
 
   svg {
-    width: 20px;
+    width: 16px;
+    height: 16px;
+
+    path {
+      fill: ${Colors.Black[400]}!important;
+      transition: ${Transitions.all};
+    }
+  }
+
+  &:hover {
+    svg {
+      path {
+        fill: ${Colors.White}!important;
+      }
+    }
   }
 `
 

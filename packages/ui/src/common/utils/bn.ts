@@ -8,6 +8,13 @@ export const sumStakes = (entities: { stake: BNParam }[]) =>
 
 export const asBN = (value: any) => new BN(String(value))
 
+export const sumBN = (a: BN | undefined, b: BN | undefined): BN => new BN(a ?? 0).add(new BN(b ?? 0))
+
 export const powerOf10 = (value: any) => BN_TEN.pow(asBN(value))
 
 export const powerOf2 = (value: any) => BN_TWO.pow(asBN(value))
+
+export const divToNum = (dividend: BN, divisor: number): number => {
+  const div = dividend.divmod(new BN(divisor))
+  return div.div.toNumber() + div.mod.toNumber() / divisor
+}

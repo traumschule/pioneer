@@ -4,7 +4,6 @@ import styled from 'styled-components'
 
 import { BadgeStatus } from '@/common/components/BadgeStatus'
 import { CopyButtonTemplate } from '@/common/components/buttons'
-import { LinkIcon } from '@/common/components/icons'
 import { TableListItem } from '@/common/components/List'
 import { GhostRouterLink } from '@/common/components/RouterLink'
 import { Tooltip, TooltipDefault } from '@/common/components/Tooltip'
@@ -13,7 +12,6 @@ import { TextSmall } from '@/common/components/typography/Text'
 import { Colors, Overflow } from '@/common/constants'
 import { camelCaseToText } from '@/common/helpers'
 import { toDDMMYY } from '@/common/utils/dates'
-import { getUrl } from '@/common/utils/getUrl'
 import { MemberInfo } from '@/memberships/components'
 import { ProposalColLayout } from '@/proposals/constants'
 import { ProposalsRoutes } from '@/proposals/constants/routes'
@@ -63,37 +61,53 @@ export const ProposalListItem = ({ proposal, isPast, memberId, isCouncilMember }
     <ProposalItem
       as={GhostRouterLink}
       to={generatePath(ProposalsRoutes.preview, { id: proposal.id })}
-      $colLayout={ProposalColLayout}
+      $colLayout={ProposalColLayout(isCouncilMember, isPast)}
       $isPast={!isProposalActive(proposal.status)}
     >
-      <ToggleableItemInfo>
-        <ToggleableItemInfoTop>
-          <Subscription>{`ID: ${proposal.id}`}</Subscription>
-          {!isPast && <Subscription>Created at: {toDDMMYY(displayDate)}</Subscription>}
-          <BadgeStatus>{camelCaseToText(proposal.type)}</BadgeStatus>
-        </ToggleableItemInfoTop>
-        <ToggleableItemTitle>{proposal.title}</ToggleableItemTitle>
-      </ToggleableItemInfo>
-      <StageField>
-        <TextSmall bold>{camelCaseToText(proposal.status)}</TextSmall>
-        <Tooltip
-          tooltipText={checkStatus()}
-          tooltipLinkURL="https://joystream.gitbook.io/testnet-workspace/system/proposal-system#proposal"
-        >
-          <TooltipDefault />
-        </Tooltip>
-      </StageField>
-      <MemberInfo member={proposal.proposer} memberSize="s" showIdOrText />
-      <StageField>{isPast && <Subscription>{toDDMMYY(displayDate)}</Subscription>}</StageField>
-      <StageField>
-        <ProposalItemVoteDetails proposal={proposal} memberId={memberId} isCouncilMember={isCouncilMember} />
-      </StageField>
-      <CopyButton
-        square
-        size="small"
-        textToCopy={getUrl({ route: ProposalsRoutes.preview, params: { id: proposal.id } })}
-        icon={<LinkIcon />}
-      />
+      <FieldWrapper>
+        <FieldTitleInListItem>Title</FieldTitleInListItem>
+        <ToggleableItemInfo>
+          <ToggleableItemInfoTop>
+            <Subscription>{`ID: ${proposal.id}`}</Subscription>
+            {!isPast && <Subscription>Created at: {toDDMMYY(displayDate)}</Subscription>}
+            <BadgeStatus>{camelCaseToText(proposal.type)}</BadgeStatus>
+          </ToggleableItemInfoTop>
+          <ToggleableItemTitle>{proposal.title}</ToggleableItemTitle>
+        </ToggleableItemInfo>
+      </FieldWrapper>
+
+      <FieldWrapper>
+        <FieldTitleInListItem>Stage</FieldTitleInListItem>
+        <StageField>
+          <TextSmall bold>{camelCaseToText(proposal.status)}</TextSmall>
+          <Tooltip
+            tooltipText={checkStatus()}
+            tooltipLinkURL="https://joystream.gitbook.io/testnet-workspace/system/proposal-system#proposal"
+          >
+            <TooltipDefault />
+          </Tooltip>
+        </StageField>
+      </FieldWrapper>
+      <FieldWrapper>
+        <FieldTitleInListItem>Proposer</FieldTitleInListItem>
+        <MemberInfo member={proposal.proposer} memberSize="s" showIdOrText />
+      </FieldWrapper>
+      {isPast && (
+        <FieldWrapper>
+          <FieldTitleInListItem>Ended</FieldTitleInListItem>
+          <StageField>
+            <Subscription>{toDDMMYY(displayDate)}</Subscription>
+          </StageField>
+        </FieldWrapper>
+      )}
+      {isCouncilMember && (
+        <FieldWrapper>
+          <FieldTitleInListItem>My vote</FieldTitleInListItem>
+          <StageField>
+            <ProposalItemVoteDetails proposal={proposal} memberId={memberId} />
+          </StageField>
+        </FieldWrapper>
+      )}
     </ProposalItem>
   )
 }
@@ -116,6 +130,31 @@ const ProposalItem = styled(TableListItem)`
   &:hover ${CopyButton} {
     visibility: visible;
   }
+
+  @media (max-width: 1439px) {
+    padding: 16px;
+    grid-template-columns: unset;
+    grid-row-gap: 24px;
+    height: fit-content;
+
+    ${ToggleableItemInfo} {
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 4px;
+      align-items: start;
+
+      h5 {
+        white-space: wrap;
+      }
+    }
+
+    ${ToggleableItemInfoTop} {
+      display: flex;
+      flex-wrap: wrap;
+      column-gap: 16px;
+      row-gap: 4px;
+    }
+  }
 `
 
 export const StageField = styled.div`
@@ -127,5 +166,26 @@ export const StageField = styled.div`
 
   ${TextSmall} {
     ${Overflow.FullDots};
+  }
+`
+
+const FieldTitleInListItem = styled.span`
+  font-size: 10px;
+  line-height: 16px;
+  font-weight: 700;
+  color: ${Colors.Black[400]};
+  text-transform: uppercase;
+  text-align: left;
+`
+
+const FieldWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  row-gap: 4px;
+
+  @media (min-width: 1440px) {
+    ${FieldTitleInListItem} {
+      display: none;
+    }
   }
 `

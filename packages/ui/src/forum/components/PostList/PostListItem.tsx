@@ -14,7 +14,6 @@ import { ArrowReplyIcon, LinkIcon, ReplyIcon } from '@/common/components/icons'
 import { MarkdownPreview } from '@/common/components/MarkdownPreview'
 import { Badge } from '@/common/components/typography'
 import { BorderRad, Colors, Fonts, Shadows } from '@/common/constants'
-import { useLocation } from '@/common/hooks/useLocation'
 import { useModal } from '@/common/hooks/useModal'
 import { relativeIfRecent } from '@/common/model/relativeIfRecent'
 import { PostHistoryModalCall } from '@/forum/modals/PostHistoryModal'
@@ -58,7 +57,6 @@ export const PostListItem = ({
   const { active } = useMyMemberships()
   const { createdAtBlock, lastEditedAt, author, text, repliesTo } = post
   const [postLastEditedAt, setPostLastEditedAt] = useState<string | undefined>(lastEditedAt)
-  const location = useLocation()
   const { showModal } = useModal()
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -69,7 +67,7 @@ export const PostListItem = ({
     if (ref.current && isSelected) {
       ref.current.scrollIntoView({ behavior: 'smooth', inline: 'start' })
     }
-  }, [location, ref.current])
+  }, [isSelected])
 
   const [editing, setEditing] = useState(false)
   const editionTime = useMemo(() => {
@@ -107,10 +105,10 @@ export const PostListItem = ({
   return (
     <ForumPostBlock ref={ref} isSelected={isSelected} isDiscussion={isDiscussion}>
       <ForumPostStyles>
-        <ForumPostRow>
+        <ForumPostHeader>
           <ForumPostAuthor>{author && <MemberInfo member={author} />}</ForumPostAuthor>
           {createdAtBlock && <BlockTime block={createdAtBlock} layout="reverse" position="end" />}
-        </ForumPostRow>
+        </ForumPostHeader>
         <MessageBody>
           <ModeratedPostWrapper post={post}>
             {repliesTo && (
@@ -272,5 +270,17 @@ export const ForumPostRow = styled.div`
 
   ${BlockTimeWrapper}, ${ButtonsGroup}:last-of-type {
     justify-content: flex-end;
+  }
+`
+
+const ForumPostHeader = styled(ForumPostRow)`
+  @media (max-width: 424px) {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 8px;
+
+    ${BlockTimeWrapper} {
+      justify-items: start;
+    }
   }
 `

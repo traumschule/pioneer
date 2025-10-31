@@ -10,6 +10,7 @@ import { Info } from '@/common/components/Info'
 import { Row } from '@/common/components/Modal'
 import { RowGapBlock } from '@/common/components/page/PageContent'
 import { TextMedium, TokenValue } from '@/common/components/typography'
+import { useResponsive } from '@/common/hooks/useResponsive'
 import { formatJoyValue } from '@/common/model/formatters'
 import { ValidationHelpers } from '@/common/utils/validation'
 import { SelectedMember } from '@/memberships/components/SelectMember'
@@ -21,6 +22,7 @@ interface StakingStepProps extends ValidationHelpers {
 }
 
 export const StakeStep = ({ candidacyMember, minStake, errorChecker, errorMessageGetter }: StakingStepProps) => {
+  const { isMobile, size } = useResponsive()
   const form = useFormContext()
   const [stake] = form.watch(['staking.amount'])
   const balances = useMyBalances()
@@ -46,20 +48,20 @@ export const StakeStep = ({ candidacyMember, minStake, errorChecker, errorMessag
           <InputComponent
             label="Select account for Staking"
             required
-            inputSize="l"
+            inputSize={isMobile ? 'xxl' : 'l'}
             disabled={!isSomeBalanceGteStake}
             message={errorChecker('account') ? errorMessageGetter('account') : undefined}
             validation={errorChecker('account') ? 'invalid' : undefined}
-            tooltipText={
-              <>
-                When losing an election, your candidacy lock is removed and your steak becomes immediately recoverable.
-                If you win and get elected, your candidacy lock will be automatically removed, and a council specific
-                lock will be applied, with the same amount locked. When that council is replaced, this lock is removed,
-                if you did not get re-elected
-              </>
-            }
+            tooltipText="The account holding the stake for the candidate. After announcing the staking account will have locked up REQUIRED_CANDIDACY_STAKE under the relevant council lock. If the candidacy fails - either because the election cycle fails or the candidate receives too few votes, then this lock can be removed by the candidate, otherwise it remains on into the councilorship. Be aware that this stake contributed towards the candidacy does not contribute towards the final election outcome, hence exceeding the minimum bound would only be done for signaling or other social purposes."
+            tooltipLinkText="Learn more"
+            tooltipLinkURL="https://handbook.joystream.org/system/council#candidacy"
           >
-            <SelectStakingAccount name="staking.account" minBalance={minStake} lockType="Council Candidate" />
+            <SelectStakingAccount
+              name="staking.account"
+              minBalance={minStake}
+              lockType="Council Candidate"
+              variant={size === 'lg' ? 'l' : 's'}
+            />
           </InputComponent>
           <RowGapBlock gap={8}>
             <h4>2. Stake</h4>

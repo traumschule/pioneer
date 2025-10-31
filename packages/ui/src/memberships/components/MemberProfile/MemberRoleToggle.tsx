@@ -3,7 +3,7 @@ import styled from 'styled-components'
 
 import { UnknownAccountInfo } from '@/accounts/components/UnknownAccountInfo'
 import { BlockTime } from '@/common/components/BlockTime'
-import { ButtonGhost, ButtonsGroup } from '@/common/components/buttons'
+import { ButtonGhost, ResponsiveButtonsGroup } from '@/common/components/buttons'
 import { LinkButtonGhost } from '@/common/components/buttons/LinkButtons'
 import { ToggleableItem, ToggleButton } from '@/common/components/buttons/Toggle'
 import { Arrow } from '@/common/components/icons'
@@ -32,7 +32,7 @@ export const MemberRoleToggle = ({ role }: MemberRoleToggleProps) => {
       data: { applicationId: role.applicationId },
     })
   }, [role])
-  const { earnings, currentDayEarnings } = useWorkerEarnings(role.id)
+  const { earnings } = useWorkerEarnings(role.id)
   const rewardPeriod = useRewardPeriod(role.group.id)
   const [isOpen, toggleOpen] = useToggle()
 
@@ -67,14 +67,14 @@ export const MemberRoleToggle = ({ role }: MemberRoleToggleProps) => {
                   </SidePaneText>
                 </SidePaneColumn>
               </SidePaneRow>
-              <SidePaneRow>
-                <SidePaneLabel text="Earned in 24h" />
+              {/** TODO fix calculation <SidePaneRow>
+                <SidePaneLabel text="Earned in 7 days" />
                 <SidePaneColumn>
                   <SidePaneText>
                     <TokenValue value={currentDayEarnings} />
                   </SidePaneText>
                 </SidePaneColumn>
-              </SidePaneRow>
+              </SidePaneRow>**/}
               <SidePaneRow>
                 <SidePaneLabel text="Role account" />
                 <SidePaneColumn>
@@ -93,14 +93,14 @@ export const MemberRoleToggle = ({ role }: MemberRoleToggleProps) => {
                   <UnknownAccountInfo address={role.rewardAccount} placeholderName="Reward account" />
                 </SidePaneColumn>
               </SidePaneRow>
-              <ButtonsGroup align="left">
+              <ResponsiveButtonsGroup align="left">
                 <ButtonGhost size="small" onClick={showApplicationModal}>
                   Application preview <Arrow direction="right" />
                 </ButtonGhost>
                 <LinkButtonGhost size="small" to={`/working-groups/openings/${role?.openingId}`}>
                   Opening preview <Arrow direction="right" />
                 </LinkButtonGhost>
-              </ButtonsGroup>
+              </ResponsiveButtonsGroup>
             </MemberRoleTable>
           </MemberRoleTableContainer>
         )}
