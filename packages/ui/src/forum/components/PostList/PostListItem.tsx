@@ -258,6 +258,7 @@ export const ForumPostAuthor = styled.div``
 export const ForumPostRow = styled.div`
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-start;
   width: 100%;
 
   ${ForumPostAuthor}, ${ButtonsGroup}, ${BlockTimeWrapper} {
