@@ -26,12 +26,6 @@ export interface MemberRolesProps {
   wrapable?: boolean
 }
 
-const defaultRole = {
-  id: '0',
-  groupName: 'Member Role',
-  isLead: false,
-}
-
 export const rolesToMap = (roles: MemberRole[]): Map<string, MemberRole[]> => {
   const mapRoles = new Map<string, MemberRole[]>()
   for (const role of roles) {
@@ -51,9 +45,10 @@ export const rolesToMap = (roles: MemberRole[]): Map<string, MemberRole[]> => {
 
 export const MemberRoles = ({ size, max, wrapable, roles }: MemberRolesProps) => {
   if (!roles || !roles.length) {
-    roles = [defaultRole]
+    roles = []
   }
-  const mapRoles = rolesToMap(roles)
+  const activeRoles = roles.filter((role) => role.isActive)
+  const mapRoles = rolesToMap(activeRoles)
   const rolesWithCount = [...mapRoles.entries()]
 
   const rolesToDisplay = max ? rolesWithCount.slice(0, max) : rolesWithCount

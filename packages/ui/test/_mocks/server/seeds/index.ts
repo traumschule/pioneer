@@ -7,8 +7,8 @@ import { RawApplication } from '../../../../src/mocks/data/seedApplications'
 
 export const MEMBER_ALICE_DATA: MockMember = {
   id: '0',
-  rootAccount: '5GNJqTPyNqANBkUVMN1LPPrxXnFouWXoe2wNSmmEoLctxiZY',
-  controllerAccount: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY',
+  rootAccount: 'j4VdDQVdwFYfQ2MvEdLT2EYZx4ALPQQ6yMyZopKoZEQmXcJrT',
+  controllerAccount: 'j4W7rVcUCxi2crhhjRq46fNDRbVHTjJrz6bKxZwehEMQxZeSf',
   handle: 'alice',
   metadata: {
     name: 'animi et',
@@ -138,6 +138,6 @@ export const PROPOSAL_DATA: ProposalMock = {
     rationale: '',
     votingRound: 1,
   })),
-  proposalStatusUpdates: [{ newStatus: 'deciding', inBlock: 0 }],
+  proposalStatusUpdates: [],
   discussionThread: { discussionPosts: [], mode: 'ProposalDiscussionThreadModeOpen' },
 }

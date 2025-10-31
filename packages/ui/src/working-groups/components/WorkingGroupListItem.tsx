@@ -4,7 +4,7 @@ import styled from 'styled-components'
 import { Arrow } from '@/common/components/icons'
 import { TableListItem } from '@/common/components/List'
 import { GhostRouterLink, RouterLink } from '@/common/components/RouterLink'
-import { Tooltip, TooltipDefault } from '@/common/components/Tooltip'
+import { Tooltip } from '@/common/components/Tooltip'
 import { TextMedium, TokenValue } from '@/common/components/typography'
 import { BorderRad, Colors, Fonts, Overflow, Transitions } from '@/common/constants'
 import { nameMapping, wgListItemMappings } from '@/common/helpers'
@@ -28,9 +28,10 @@ export function WorkingGroupListItem({ group }: WorkingGroupProps) {
   const { isLoading: loadingWorkers, workers } = useCountWorkers(group.id)
 
   const { member: lead } = useMember(group.leadId)
+
   const groupAddress = `/working-groups/${groupNameToURLParam(nameMapping(group.name))}`
   const isLeadActive = lead && group.isActive
-  const { subtitle, tooltipLink, groupName } = useMemo(
+  const { defaultDescription, handbookLink, groupName } = useMemo(
     () => ({ ...wgListItemMappings(group.name), groupName: nameMapping(group.name) }),
     [group.name]
   )
@@ -40,20 +41,20 @@ export function WorkingGroupListItem({ group }: WorkingGroupProps) {
       <GroupImageContainer as={GhostRouterLink} to={groupAddress}>
         <WorkingGroupImage groupName={group.name} />
       </GroupImageContainer>
-      <GroupContentBlock as={GhostRouterLink} to={groupAddress}>
-        <GroupTitle>
-          {groupName}{' '}
-          {tooltipLink && (
-            <Tooltip
-              tooltipTitle={groupName}
-              tooltipLinkText="Learn more about this group"
-              tooltipLinkURL={tooltipLink}
-            >
-              <TooltipDefault />
-            </Tooltip>
-          )}
-        </GroupTitle>
-        <GroupContent>{subtitle}</GroupContent>
+      <GroupContentBlock>
+        <Tooltip
+          tooltipTitle={groupName}
+          tooltipText=""
+          tooltipLinkURL={handbookLink}
+          tooltipLinkText="Learn more about this group"
+        >
+          <GroupTitle as={GhostRouterLink} to={groupAddress}>
+            {groupName}
+          </GroupTitle>
+        </Tooltip>
+        <GroupContent as={GhostRouterLink} to={groupAddress}>
+          {defaultDescription}
+        </GroupContent>
       </GroupContentBlock>
       <GroupStats>
         <StatsColumn>
@@ -74,7 +75,7 @@ export function WorkingGroupListItem({ group }: WorkingGroupProps) {
             ) : (
               <PlaceholderWrapper>
                 <AvatarPlaceholder />
-                <MemberHandle>No Leader</MemberHandle>
+                <MemberHandle>No Lead</MemberHandle>
               </PlaceholderWrapper>
             )}
           </StatsValue>
@@ -128,9 +129,11 @@ const GroupContent = styled(TextMedium)`
   ${Overflow.DotsTwoLine};
 `
 
+export const groupStatsColLayout = '64px 140px 64px 140px'
+
 const GroupStats = styled.div`
   display: grid;
-  grid-template-columns: 64px 116px 30px 140px;
+  grid-template-columns: ${groupStatsColLayout};
   justify-content: space-between;
   width: 100%;
   grid-column-gap: 8px;
@@ -154,16 +157,18 @@ const StatsValue = styled.span`
   color: ${Colors.Black[900]};
 `
 
+export const groupListColLayout = '108px repeat(2, minmax(400px, 1fr)) 40px'
+
 const GroupItem = styled(TableListItem)`
   display: grid;
-  grid-template-columns: 108px 1fr 1fr 40px;
+  grid-template-columns: ${groupListColLayout};
   grid-template-rows: 1fr;
   grid-column-gap: 24px;
   width: 100%;
   height: 100%;
   max-height: 108px;
   align-items: center;
-  padding: 0 16px 0 0;
+  padding: 0;
   border: 1px solid ${Colors.Black[100]};
   border-radius: ${BorderRad.s};
   background-color: ${Colors.White};

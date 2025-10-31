@@ -1,9 +1,11 @@
 import React from 'react'
+import styled from 'styled-components'
 
 import { ButtonsGroup } from '@/common/components/buttons'
 import { LinkButtonGhost } from '@/common/components/buttons/LinkButtons'
 import { TransactionButton } from '@/common/components/buttons/TransactionButton'
 import { StatiscticContentColumn, Statistics, StatsBlock, MultiColumnsStatistic } from '@/common/components/statistics'
+import { Tooltip, TooltipDefault } from '@/common/components/Tooltip'
 import { TextBig, TokenValue } from '@/common/components/typography'
 import { Subscription } from '@/common/components/typography/Subscription'
 import { isInFuture, nameMapping } from '@/common/helpers'
@@ -16,14 +18,13 @@ import {
   OpenedTop,
   OpenedWrapper,
 } from '@/working-groups/components/ToggleableItemStyledComponents'
-import { useRewardPeriod } from '@/working-groups/hooks/useRewardPeriod'
 import { ApplyForRoleModalCall } from '@/working-groups/modals/ApplyForRoleModal'
+import { asWeeklyRewards } from '@/working-groups/model/asWeeklyRewards'
 import { isOpeningOpen } from '@/working-groups/model/isOpeningOpen'
 import { groupNameToURLParam } from '@/working-groups/model/workingGroupName'
 
 export const OpeningDetails = ({ opening, onClick, past }: OpeningListItemProps) => {
   const { showModal } = useModal()
-  const rewardPeriod = useRewardPeriod(opening.groupId)
   const groupName = groupNameToURLParam(nameMapping(opening.groupName))
   const openingRoute = `/working-groups/openings/${groupName}-${opening.runtimeId}`
 
@@ -37,12 +38,12 @@ export const OpeningDetails = ({ opening, onClick, past }: OpeningListItemProps)
           <OpenedItemTitle>{opening.title}</OpenedItemTitle>
         </OpenedTop>
         <TextBig light>{opening.shortDescription}</TextBig>
-        <Statistics withMargin gapSize="s">
+        <StatisticsStyle withMargin>
           <StatsBlock size="m" centered>
             <TextBig>
-              <TokenValue value={rewardPeriod?.mul(opening.rewardPerBlock)} />
+              <TokenValue value={asWeeklyRewards(opening.rewardPerBlock)} />
             </TextBig>
-            <Subscription>Reward per {rewardPeriod?.toString()} blocks</Subscription>
+            <Subscription>Reward per week</Subscription>
           </StatsBlock>
           <StatsBlock size="m" centered>
             <MultiColumnsStatistic>
@@ -66,9 +67,18 @@ export const OpeningDetails = ({ opening, onClick, past }: OpeningListItemProps)
             <TextBig>
               <TokenValue value={opening.stake} />
             </TextBig>
-            <Subscription>Minimum Stake Required</Subscription>
+            <MinStake>
+              Minimum Stake Required{' '}
+              <Tooltip
+                tooltipText="Minimum tokens free of rivalrous locks required as application stake to this role."
+                tooltipLinkText="Learn more"
+                tooltipLinkURL="https://joystream.gitbook.io/testnet-workspace/system/working-groups#staking"
+              >
+                <TooltipDefault />
+              </Tooltip>
+            </MinStake>
           </StatsBlock>
-        </Statistics>
+        </StatisticsStyle>
         <ButtonsGroup align="right">
           <LinkButtonGhost to={openingRoute} size="medium">
             Learn more
@@ -87,3 +97,17 @@ export const OpeningDetails = ({ opening, onClick, past }: OpeningListItemProps)
     </OpenedContainer>
   )
 }
+
+const MinStake = styled(Subscription)`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const StatisticsStyle = styled(Statistics)`
+  grid-template-columns: 1fr;
+
+  @media (min-width: 768px) {
+    grid-template-columns: 1fr 1fr;
+  }
+`

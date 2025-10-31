@@ -7,7 +7,7 @@ import React from 'react'
 import { Router } from 'react-router'
 import { interpret } from 'xstate'
 
-import { MoveFundsModalCall } from '@/accounts/modals/MoveFoundsModal'
+import { MoveFundsModalCall } from '@/accounts/modals/MoveFundsModal'
 import { ApiContext } from '@/api/providers/context'
 import { CurrencyName } from '@/app/constants/currency'
 import { GlobalModals } from '@/app/GlobalModals'
@@ -109,16 +109,12 @@ describe('UI: Announce Candidacy Modal', () => {
 
       renderModal()
 
-      const switchMemberModalCall = {
-        modal: 'SwitchMember',
-        data: {
-          originalModalName: 'AnnounceCandidateModal',
-          originalModalData: null,
-        },
+      const onBoardingModalCall = {
+        modal: 'OnBoardingModal',
       }
 
       expect(showModal).toBeCalledTimes(1)
-      expect(showModal).toBeCalledWith({ ...switchMemberModalCall })
+      expect(showModal).toBeCalledWith({ ...onBoardingModalCall })
     })
 
     it('Transaction fee', async () => {
@@ -196,7 +192,7 @@ describe('UI: Announce Candidacy Modal', () => {
           const { getByText } = renderModal()
 
           await fillStakingStep('alice', 1, false)
-
+          screen.logTestingPlaygroundURL()
           expect(await getNextStepButton()).toBeDisabled()
           expect(
             includesTextWithMarkup(getByText, `Minimal stake amount is 10 ${CurrencyName.integerValue}`)
@@ -262,7 +258,7 @@ describe('UI: Announce Candidacy Modal', () => {
           'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua'
         )
 
-        expect(screen.queryByText(/^maximum length is \d+ symbols/i)).not.toBeNull()
+        await waitFor(() => expect(screen.getByText(/^maximum length is \d+ symbols/i)))
         expect(await getNextStepButton()).toBeDisabled()
       })
 
@@ -271,7 +267,7 @@ describe('UI: Announce Candidacy Modal', () => {
           'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua!Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua'
         )
 
-        expect(screen.queryByText(/^maximum length is \d+ symbols/i)).not.toBeNull()
+        await waitFor(() => expect(screen.getByText(/^maximum length is \d+ symbols/i)))
         expect(await getNextStepButton()).toBeDisabled()
       })
 
