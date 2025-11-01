@@ -11,7 +11,7 @@ export const ForumTabs = () => {
   const { totalCount } = useMyThreads({ page: 1, order } as UseMyThreadsProps)
   const tabs = usePageTabs([
     ['Forum', ForumRoutes.forum],
-    ['My Threads', ForumRoutes.myThreads, totalCount? > 0 ? totalCount : null],
+    ['My Threads', ForumRoutes.myThreads, +totalCount > 0 ? totalCount : null],
     ['Watchlist', ForumRoutes.watchlist],
     ['Archived', ForumRoutes.archived],
   ])
