@@ -38,7 +38,7 @@ export const useMyThreads = ({ page, threadsPerPage = 5, order }: UseMyThreadsPr
     variables: { where: variables.where },
   })
 
-  const totalCount = countData?.forumThreadsConnection.totalCount
+  const totalCount = countData?.forumThreadsConnection.totalCount || undefined
 
   return {
     isLoading: loadingPosts || loadingCount,
