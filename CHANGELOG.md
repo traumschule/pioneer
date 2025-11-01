@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.9.0] - 2025-11-01
+### Added
+- Latest Posts
+- Mythreads counter
+- My role tooltip
+- Add proposal tooltip
+- Move forum action buttions
+
+### Fixed
+- Update JSG mainnet RPC
+- Restore votes fix
+- Balance tooltip orientation
+- Show 50 Validators per page
+- Icon attributes
+- External links validation
+
+### Contributors
+- [Create](/goldstarhigher)
+- [L1 Media](/traumschule)
+- [Lexek Wiesner](/lezek123)
+- [Mkbeefcake](/Mkbeefcake)
+
 ## [3.8.0] - 2025-04-15
 
 ### Added
