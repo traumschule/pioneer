@@ -32,7 +32,7 @@ describe('useProposals', () => {
       const result = await loadUseProposals({ status: 'active' })
       expect(result.proposals.length).toBeGreaterThan(0)
       result.proposals.forEach((proposal) => {
-        expect(proposalActiveStatuses.includes(proposal.status)).toBeFalsy()
+        expect(proposalActiveStatuses.includes(proposal.status)).toBeTruthy()
       })
     })
 
