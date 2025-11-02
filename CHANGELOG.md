@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.9.1] - 2025-12-01
+### Added
+- Social links + validation
+- Validator page nomination features with SDK hooks
+- Validator Dashboard with era rewards + payout
+- Set MaxWhiteList size of proposal
+
+### Fixed
+- Hide `Coming Soon`
+- Sort WG Openings
+- Remove unused proposal types
+
+### Contributors
+- [Chaos](/chrlschwb)
+- [Create](/goldstarhigher)
+- [L1 Media](/traumschule)
+- [Glisten](/glisten-star)
+
 ## [3.9.0] - 2025-11-01
 ### Added
 - Latest Posts
