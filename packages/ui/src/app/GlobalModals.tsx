@@ -69,6 +69,10 @@ import { CancelProposalModal, CancelProposalModalCall } from '@/proposals/modals
 import { VoteForProposalModal, VoteForProposalModalCall } from '@/proposals/modals/VoteForProposal'
 import { VoteRationaleModalCall } from '@/proposals/modals/VoteRationale/types'
 import { VoteRationale } from '@/proposals/modals/VoteRationale/VoteRationale'
+import {
+  ClaimStakingRewardsModal,
+  ClaimStakingRewardsModalCall,
+} from '@/validators/modals/ClaimStakingRewardsModal'
 import { NominatingRedirectModal, NominatingRedirectModalCall } from '@/validators/modals/NominatingRedirectModal'
 import { ApplicationDetailsModal, ApplicationDetailsModalCall } from '@/working-groups/modals/ApplicationDetailsModal'
 import { ApplyForRoleModal, ApplyForRoleModalCall } from '@/working-groups/modals/ApplyForRoleModal'
@@ -132,6 +136,7 @@ export type ModalNames =
   | ModalName<EmailSubscriptionModalCall>
   | ModalName<EmailConfirmationModalCall>
   | ModalName<NominatingRedirectModalCall>
+  | ModalName<ClaimStakingRewardsModalCall>
   | ModalName<CancelProposalModalCall>
 
 const modals: Record<ModalNames, ReactElement> = {
@@ -186,6 +191,7 @@ const modals: Record<ModalNames, ReactElement> = {
   EmailSubscriptionModal: <EmailSubscriptionModal />,
   EmailConfirmationModal: <EmailConfirmationModal />,
   NominatingRedirect: <NominatingRedirectModal />,
+  ClaimStakingRewardsModal: <ClaimStakingRewardsModal />,
   CancelProposalModal: <CancelProposalModal />,
 }
 
@@ -203,6 +209,7 @@ const GUEST_ACCESSIBLE_MODALS: ModalNames[] = [
   'RecoverBalance',
   'DisconnectWallet',
   'ClaimVestingModal',
+  'ClaimStakingRewardsModal',
   'ReportContentModal',
   'EmailConfirmationModal',
   'VoteRationaleModal',
