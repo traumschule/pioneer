@@ -71,7 +71,7 @@ export function Nominators() {
           {!isLoading ? (
             sortedAccounts.map((account) => (
               <ListItem key={account.address}>
-                <NominatorAccountItem account={account} dateLabel="create" />
+                <NominatorAccountItem account={account} />
               </ListItem>
             ))
           ) : (
@@ -110,7 +110,7 @@ const ListHeaders = styled.div`
   display: grid;
   grid-area: accountstablenav;
   grid-template-rows: 1fr;
-  grid-template-columns: 170px repeat(2, 120px) 124px;
+  grid-template-columns: 276px repeat(2, 213px);
   justify-content: space-between;
   width: 100%;
   padding: 0 16px;

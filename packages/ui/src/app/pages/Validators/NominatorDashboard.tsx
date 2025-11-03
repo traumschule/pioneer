@@ -1,15 +1,16 @@
-import BN from 'bn.js'
 import React from 'react'
 import styled from 'styled-components'
 
-import { useMyTotalBalances } from '@/accounts/hooks/useMyTotalBalances'
 import { PageHeader } from '@/app/components/PageHeader'
 import { PageLayout } from '@/app/components/PageLayout'
 import { List, ListItem } from '@/common/components/List'
 import { RowGapBlock } from '@/common/components/page/PageContent'
-import { MultiValueStat, Statistics, TokenValueStat } from '@/common/components/statistics'
-import { Colors } from '@/common/constants'
+import { MultiTextValueStat, MultiValueStat, Statistics, TokenValueStat } from '@/common/components/statistics'
+import { BN_ZERO, Colors } from '@/common/constants'
 import { NorminatorDashboardItem } from '@/validators/components/nominator/NominatorItems'
+import { useMyStakingAPR } from '@/validators/hooks/useMyStakingAPR'
+import { useMyStakingInfo } from '@/validators/hooks/useMyStakingInfo'
+import { useMyStakingRewards } from '@/validators/hooks/useMyStakingRewards'
 import { useValidatorsList } from '@/validators/hooks/useValidatorsList'
 
 import { ClaimAllButton } from './components/ClaimAllButton'
@@ -17,8 +18,9 @@ import { ValidatorsTabs } from './components/ValidatorsTabs'
 
 export const NominatorDashboard = () => {
   const { validatorsWithDetails } = useValidatorsList()
-
-  const { vestedClaimable } = useMyTotalBalances()
+  const stakingInfo = useMyStakingInfo()
+  const stakingRewards = useMyStakingRewards()
+  const stakingAPR = useMyStakingAPR()
 
   return (
     <PageLayout
@@ -28,44 +30,44 @@ export const NominatorDashboard = () => {
           <Statistics>
             <TokenValueStat
               title="CLAIMABLE REWARDS"
-              tooltipText="tooltip text..."
-              tooltipTitle="claim rewards tooltip title"
-              tooltipLinkText="link..."
+              tooltipText="Total staking rewards that can be claimed from all your nominator accounts. These are rewards earned but not yet claimed from past eras."
+              tooltipTitle="Claimable Staking Rewards"
+              tooltipLinkText="Learn about claiming rewards"
               tooltipLinkURL="#"
-              value={vestedClaimable}
+              value={stakingRewards?.claimableRewards}
               actionElement={<ClaimAllButton />}
             />
             <MultiValueStat
               title="STAKE"
-              tooltipText="tooltip text..."
-              tooltipTitle="stake tooltip title"
-              tooltipLinkText="link..."
+              tooltipText="Your total nominated stake across all validators you're nominating."
+              tooltipTitle="Nominator Stake"
+              tooltipLinkText="Learn about nominating"
               tooltipLinkURL="#"
               values={[
-                { label: 'Total', value: new BN(0) },
-                { label: 'Yours', value: new BN(0) },
+                { label: 'Total', value: stakingInfo?.totalStake ?? BN_ZERO },
+                { label: 'Yours', value: stakingInfo?.ownStake ?? BN_ZERO },
               ]}
             />
             <MultiValueStat
               title="YOUR REWARDS "
-              tooltipText="tooltip text..."
-              tooltipTitle="Rewards tooltip title"
-              tooltipLinkText="link..."
+              tooltipText="Total rewards earned from nominating validators and the rewards from the most recent era."
+              tooltipTitle="Nominator Rewards"
+              tooltipLinkText="Learn about nominator rewards"
               tooltipLinkURL="#"
               values={[
-                { label: 'total', value: new BN(0) },
-                { label: 'last', value: new BN(0) },
+                { label: 'total', value: stakingRewards?.totalRewards ?? BN_ZERO },
+                { label: 'last', value: stakingRewards?.lastEraRewards ?? BN_ZERO },
               ]}
             />
-            <MultiValueStat
+            <MultiTextValueStat
               title="ANNUAL PECENTAGE RATE(APR)"
-              tooltipText="tooltip text..."
-              tooltipTitle="annual tooltip title"
-              tooltipLinkText="link..."
+              tooltipText="Expected annual percentage return based on your nominated validators' performance. Average is calculated from the last 30 eras (~7.5 days)."
+              tooltipTitle="Nominator APR"
+              tooltipLinkText="Learn about APR calculation"
               tooltipLinkURL="#"
               values={[
-                { label: 'Average', value: new BN(0) },
-                { label: 'Last 7 days', value: new BN(0) },
+                { label: 'Average', value: `${stakingAPR?.averageAPR?.toFixed(2) ?? '0.00'}%` },
+                { label: 'Last 7 days', value: `${stakingAPR?.last7DaysAPR?.toFixed(2) ?? '0.00'}%` },
               ]}
             />
           </Statistics>

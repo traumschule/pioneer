@@ -1,49 +1,24 @@
-import React, { ReactNode, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import styled from 'styled-components'
 
-import { AccountItemLoading } from '@/accounts/components/AccountItem/AccountItemLoading'
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
-import { useMyBalances } from '@/accounts/hooks/useMyBalances'
-import { filterAccounts } from '@/accounts/model/filterAccounts'
-import { SortKey, setOrder, sortAccounts } from '@/accounts/model/sortAccounts'
 import { ButtonPrimary } from '@/common/components/buttons'
 import { EmptyPagePlaceholder } from '@/common/components/EmptyPagePlaceholder/EmptyPagePlaceholder'
 import { List, ListItem } from '@/common/components/List'
+import { Loading } from '@/common/components/Loading'
 import { ContentWithTabs } from '@/common/components/page/PageContent'
-import { HeaderText, SortIconDown, SortIconUp } from '@/common/components/SortedListHeaders'
 import { Colors } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
+import { useAllAccountsRewardHistory } from '@/validators/hooks/useRewardHistory'
 
 import { RewardHistoryItem } from './dashboard/RewardHistoryItem'
 
 export function RewardHistory() {
   const { allAccounts, hasAccounts, isLoading, wallet } = useMyAccounts()
   const { showModal } = useModal()
-  const [isDisplayAll] = useState(true)
-  const balances = useMyBalances()
-  const [sortBy, setSortBy] = useState<SortKey>('name')
-  const [isDescending, setDescending] = useState(false)
-  const visibleAccounts = useMemo(
-    () => filterAccounts(allAccounts, isDisplayAll, balances),
-    [JSON.stringify(allAccounts), isDisplayAll, hasAccounts]
-  )
-  const sortedAccounts = useMemo(
-    () => sortAccounts(visibleAccounts, balances, sortBy, isDescending),
-    [visibleAccounts, balances, sortBy, isDescending]
-  )
 
-  const getOnSort = (key: SortKey) => () => setOrder(key, sortBy, setSortBy, isDescending, setDescending)
-
-  const Header = ({ children, sortKey }: HeaderProps) => {
-    return (
-      <ListHeader onClick={getOnSort(sortKey)}>
-        <HeaderText>
-          {children}
-          {sortBy === sortKey && (isDescending ? <SortIconDown /> : <SortIconUp />)}
-        </HeaderText>
-      </ListHeader>
-    )
-  }
+  const addresses = useMemo(() => allAccounts.map((acc) => acc.address), [allAccounts])
+  const rewardHistory = useAllAccountsRewardHistory(addresses)
 
   if (!hasAccounts && !isLoading) {
     return (
@@ -59,33 +34,48 @@ export function RewardHistory() {
     )
   }
 
+  if (!rewardHistory && isLoading) {
+    return (
+      <ContentWithTabs>
+        <Loading />
+      </ContentWithTabs>
+    )
+  }
+
+  if (!rewardHistory || rewardHistory.length === 0) {
+    return (
+      <EmptyPagePlaceholder
+        title="No Reward History"
+        copy="No claimed staking rewards found for your accounts. Start validating to earn rewards."
+        button={
+          !hasAccounts ? (
+            <ButtonPrimary size="large" onClick={() => showModal({ modal: 'OnBoardingModal' })}>
+              {!wallet ? 'Connect Wallet' : 'Join Now'}
+            </ButtonPrimary>
+          ) : undefined
+        }
+      />
+    )
+  }
+
   return (
     <ContentWithTabs>
       <AccountsWrap>
         <ListHeaders>
-          <Header sortKey="name">ACCOUNT</Header>
-          <Header sortKey="total">EPOCH</Header>
-          <Header sortKey="total">DATE</Header>
+          <ListHeader>REWARD AMOUNT</ListHeader>
+          <ListHeader>ERA</ListHeader>
+          <ListHeader>DATE</ListHeader>
         </ListHeaders>
         <List>
-          {!isLoading ? (
-            sortedAccounts.map((account) => (
-              <ListItem key={account.address}>
-                <RewardHistoryItem account={account} />
-              </ListItem>
-            ))
-          ) : (
-            <AccountItemLoading count={5} />
-          )}
+          {rewardHistory.map((reward, index) => (
+            <ListItem key={`${reward.era}-${reward.validatorStash}-${index}`}>
+              <RewardHistoryItem reward={reward} />
+            </ListItem>
+          ))}
         </List>
       </AccountsWrap>
     </ContentWithTabs>
   )
-}
-
-interface HeaderProps {
-  children: ReactNode
-  sortKey: SortKey
 }
 
 const AccountsWrap = styled.div`

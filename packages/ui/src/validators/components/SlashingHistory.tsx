@@ -1,55 +1,30 @@
-import React, { ReactNode, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import styled from 'styled-components'
 
-import { AccountItemLoading } from '@/accounts/components/AccountItem/AccountItemLoading'
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
-import { useMyBalances } from '@/accounts/hooks/useMyBalances'
-import { filterAccounts } from '@/accounts/model/filterAccounts'
-import { SortKey, setOrder, sortAccounts } from '@/accounts/model/sortAccounts'
 import { ButtonPrimary } from '@/common/components/buttons'
 import { EmptyPagePlaceholder } from '@/common/components/EmptyPagePlaceholder/EmptyPagePlaceholder'
 import { List, ListItem } from '@/common/components/List'
+import { Loading } from '@/common/components/Loading'
 import { ContentWithTabs } from '@/common/components/page/PageContent'
-import { HeaderText, SortIconDown, SortIconUp } from '@/common/components/SortedListHeaders'
 import { Colors } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
+import { useSlashingHistory } from '@/validators/hooks/useSlashingHistory'
 
 import { SlashHistoryItem } from './dashboard/SlashHistoryItem'
 
 export function SlashingHistory() {
   const { allAccounts, hasAccounts, isLoading, wallet } = useMyAccounts()
   const { showModal } = useModal()
-  const [isDisplayAll] = useState(true)
-  const balances = useMyBalances()
-  const [sortBy, setSortBy] = useState<SortKey>('name')
-  const [isDescending, setDescending] = useState(false)
-  const visibleAccounts = useMemo(
-    () => filterAccounts(allAccounts, isDisplayAll, balances),
-    [JSON.stringify(allAccounts), isDisplayAll, hasAccounts]
-  )
-  const sortedAccounts = useMemo(
-    () => sortAccounts(visibleAccounts, balances, sortBy, isDescending),
-    [visibleAccounts, balances, sortBy, isDescending]
-  )
 
-  const getOnSort = (key: SortKey) => () => setOrder(key, sortBy, setSortBy, isDescending, setDescending)
-
-  const Header = ({ children, sortKey }: HeaderProps) => {
-    return (
-      <ListHeader onClick={getOnSort(sortKey)}>
-        <HeaderText>
-          {children}
-          {sortBy === sortKey && (isDescending ? <SortIconDown /> : <SortIconUp />)}
-        </HeaderText>
-      </ListHeader>
-    )
-  }
+  const addresses = useMemo(() => allAccounts.map((acc) => acc.address), [allAccounts])
+  const slashingHistory = useSlashingHistory(addresses)
 
   if (!hasAccounts && !isLoading) {
     return (
       <EmptyPagePlaceholder
         title="Connect your wallet or create an account"
-        copy="A Polkadot wallet is required to see a breakdown of all your connected wallet account balances."
+        copy="A Polkadot wallet is required to see slashing history for your accounts."
         button={
           <ButtonPrimary size="large" onClick={() => showModal({ modal: 'OnBoardingModal' })}>
             {!wallet ? 'Connect Wallet' : 'Join Now'}
@@ -59,33 +34,48 @@ export function SlashingHistory() {
     )
   }
 
+  if (!slashingHistory && isLoading) {
+    return (
+      <ContentWithTabs>
+        <Loading />
+      </ContentWithTabs>
+    )
+  }
+
+  if (!slashingHistory || slashingHistory.length === 0) {
+    return (
+      <EmptyPagePlaceholder
+        title="No Slashing Events"
+        copy="Good news! No slashing events found for your accounts. Keep up the good work maintaining high uptime and proper validation."
+        button={
+          !hasAccounts ? (
+            <ButtonPrimary size="large" onClick={() => showModal({ modal: 'OnBoardingModal' })}>
+              {!wallet ? 'Connect Wallet' : 'Join Now'}
+            </ButtonPrimary>
+          ) : undefined
+        }
+      />
+    )
+  }
+
   return (
     <ContentWithTabs>
       <AccountsWrap>
         <ListHeaders>
-          <Header sortKey="name">REASON</Header>
-          <Header sortKey="total">EPOCH</Header>
-          <Header sortKey="total">DATE</Header>
+          <ListHeader>TYPE</ListHeader>
+          <ListHeader>ERA</ListHeader>
+          <ListHeader>DATE</ListHeader>
         </ListHeaders>
         <List>
-          {!isLoading ? (
-            sortedAccounts.map((account) => (
-              <ListItem key={account.address}>
-                <SlashHistoryItem account={account} />
-              </ListItem>
-            ))
-          ) : (
-            <AccountItemLoading count={5} />
-          )}
+          {slashingHistory.map((slash, index) => (
+            <ListItem key={`${slash.era}-${slash.validatorAddress}-${index}`}>
+              <SlashHistoryItem slash={slash} />
+            </ListItem>
+          ))}
         </List>
       </AccountsWrap>
     </ContentWithTabs>
   )
-}
-
-interface HeaderProps {
-  children: ReactNode
-  sortKey: SortKey
 }
 
 const AccountsWrap = styled.div`
@@ -114,6 +104,7 @@ const ListHeaders = styled.div`
   justify-content: space-between;
   width: 100%;
   padding: 0 16px;
+  gap: 16px;
 `
 
 export const ListHeader = styled.span`

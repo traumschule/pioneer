@@ -14,8 +14,8 @@ import { ContentWithTabs } from '@/common/components/page/PageContent'
 import { FilterTextSelect } from '@/common/components/selects'
 import { HeaderText, SortIconDown, SortIconUp } from '@/common/components/SortedListHeaders'
 import { Colors } from '@/common/constants'
-import { camelCaseToText } from '@/common/helpers'
 import { useModal } from '@/common/hooks/useModal'
+import { ChartTimeRange, useMyStakingChartData } from '@/validators/hooks/useMyStakingChartData'
 
 import { ValidatorAccountItem } from './dashboard/ValidatorAccountItem'
 
@@ -26,6 +26,7 @@ export function Overview() {
   const balances = useMyBalances()
   const [sortBy, setSortBy] = useState<SortKey>('name')
   const [isDescending, setDescending] = useState(false)
+  const [chartTimeRange, setChartTimeRange] = useState<ChartTimeRange>('month')
   const visibleAccounts = useMemo(
     () => filterAccounts(allAccounts, isDisplayAll, balances),
     [JSON.stringify(allAccounts), isDisplayAll, hasAccounts]
@@ -34,6 +35,8 @@ export function Overview() {
     () => sortAccounts(visibleAccounts, balances, sortBy, isDescending),
     [visibleAccounts, balances, sortBy, isDescending]
   )
+
+  const chartData = useMyStakingChartData(chartTimeRange)
 
   const getOnSort = (key: SortKey) => () => setOrder(key, sortBy, setSortBy, isDescending, setDescending)
 
@@ -62,35 +65,42 @@ export function Overview() {
     )
   }
 
-  const chartTestData: MultilineChartData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
-    barData: [12, 23, 23, 42, 23],
-    rewardData: [34, 22, 34, 22, 32],
-    stakeData: [14, 32, 33, 42, 12],
-  }
+  const filterOptions: { label: string; value: ChartTimeRange }[] = [
+    { label: 'Last Month', value: 'month' },
+    { label: 'Last Week', value: 'week' },
+    { label: 'Last Day', value: 'day' },
+  ]
 
-  const filterOptions: string[] = ['by Month', 'by Years', 'by Days']
+  const defaultChartData: MultilineChartData = {
+    labels: [],
+    barData: [],
+    rewardData: [],
+    stakeData: [],
+  }
 
   return (
     <ContentWithTabs>
       <ChartWarp>
         <ChartHeader>
-          <HeaderText>VALIDATOR PERFORMANCERS</HeaderText>
+          <HeaderText>VALIDATOR PERFORMANCE</HeaderText>
           <FilterBox>
             <FilterTextSelect
-              options={filterOptions}
-              value={filterOptions && camelCaseToText(filterOptions[0])}
-              onChange={() => {}}
+              options={filterOptions.map((opt) => opt.label)}
+              value={filterOptions.find((opt) => opt.value === chartTimeRange)?.label || filterOptions[0].label}
+              onChange={(value) => {
+                const selected = filterOptions.find((opt) => opt.label === value)
+                if (selected) setChartTimeRange(selected.value)
+              }}
             />
           </FilterBox>
         </ChartHeader>
-        <MultilineChart data={chartTestData} />
+        <MultilineChart data={chartData || defaultChartData} />
       </ChartWarp>
       <AccountsWrap>
         <ListHeaders>
           <Header sortKey="name">ACCOUNT</Header>
           <Header sortKey="total">TOTAL EARNED</Header>
-          <Header sortKey="total">CLAIMABLE</Header>
+          <Header sortKey="recoverable">CLAIMABLE</Header>
         </ListHeaders>
         <List>
           {!isLoading ? (
