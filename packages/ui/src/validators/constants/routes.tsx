@@ -2,6 +2,7 @@ export const ValidatorsRoutes = {
   list: '/validators',
   validatordashboard: '/validators/validatordashboard',
   nominator: '/validators/nominator',
+  bags: '/validators/bags',
 } as const
 
 type ValidatorsRoutesType = typeof ValidatorsRoutes

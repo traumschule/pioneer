@@ -1,18 +1,15 @@
 import BN from 'bn.js'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { combineLatest, map, of, switchMap } from 'rxjs'
-import styled from 'styled-components'
 
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { Account } from '@/accounts/types'
 import { useApi } from '@/api/hooks/useApi'
 import { FailureModal } from '@/common/components/FailureModal'
-import { InputComponent } from '@/common/components/forms'
-import { List, ListItem } from '@/common/components/List'
 import { Modal, ModalBody, ModalHeader, ModalTransactionFooter } from '@/common/components/Modal'
 import { RowGapBlock } from '@/common/components/page/PageContent'
 import { SuccessModal } from '@/common/components/SuccessModal'
-import { TextMedium, TokenValue } from '@/common/components/typography'
+import { TextMedium } from '@/common/components/typography'
 import { BN_ZERO, ERA_DEPTH } from '@/common/constants'
 import { useMachine } from '@/common/hooks/useMachine'
 import { useModal } from '@/common/hooks/useModal'
@@ -30,19 +27,16 @@ interface ValidatorClaimableRewards {
 }
 
 export const ClaimStakingRewardsModal = () => {
-  const { hideModal, modalData = {} } = useModal<ClaimStakingRewardsModalCall>()
+  const { hideModal } = useModal<ClaimStakingRewardsModalCall>()
   const { api } = useApi()
   const { allAccounts } = useMyAccounts()
   const [state, , service] = useMachine(transactionMachine)
-  const [selectedAccount, setSelectedAccount] = useState<Account>()
 
-  // Get claimable rewards for all validator accounts
   const validatorsRewards = useObservable<ValidatorClaimableRewards[] | undefined>(() => {
     if (!api || !allAccounts.length) return of(undefined)
 
-    const addresses = modalData?.address ? [modalData.address] : allAccounts.map((account) => account.address)
+    const addresses = allAccounts.map((account) => account.address)
 
-    // Get current era and history depth
     const eraInfo$ = api.query.staking.activeEra().pipe(
       map((activeEra) => {
         if (activeEra.isNone) return undefined
@@ -57,7 +51,6 @@ export const ClaimStakingRewardsModal = () => {
 
         const { currentEra, oldestEra } = eraInfo
 
-        // Get ledger data for each address
         const accountRewards$ = addresses.map((address) =>
           api.query.staking.bonded(address).pipe(
             switchMap((bonded) => {
@@ -71,7 +64,6 @@ export const ClaimStakingRewardsModal = () => {
                   const ledgerData = ledger.unwrap()
                   const claimedRewards = ledgerData.claimedRewards.map((era) => era.toNumber())
 
-                  // Find unclaimed eras within history depth
                   const unclaimedEras: number[] = []
                   for (let era = oldestEra; era < currentEra; era++) {
                     if (!claimedRewards.includes(era)) {
@@ -81,7 +73,6 @@ export const ClaimStakingRewardsModal = () => {
 
                   if (unclaimedEras.length === 0) return of(null)
 
-                  // Get reward points to calculate claimable amount
                   const erasRewards$ = api.derive.staking.erasRewards()
                   const erasPoints$ = api.derive.staking.erasPoints()
 
@@ -130,39 +121,45 @@ export const ClaimStakingRewardsModal = () => {
         )
       })
     )
-  }, [api?.isConnected, JSON.stringify(allAccounts.map((a) => a.address)), modalData?.address])
+  }, [api?.isConnected, JSON.stringify(allAccounts.map((a) => a.address))])
 
-  // Auto-select if only one account or if specific address provided
-  useEffect(() => {
-    if (validatorsRewards && validatorsRewards.length > 0) {
-      if (modalData?.address) {
-        const account = validatorsRewards.find((v) => v.address === modalData.address)?.account
-        if (account) setSelectedAccount(account)
-      } else if (validatorsRewards.length === 1) {
-        setSelectedAccount(validatorsRewards[0].account)
-      }
+  const totals = useMemo(() => {
+    if (!validatorsRewards) return { totalClaimable: BN_ZERO, totalEras: 0, accountsCount: 0, batchedEras: 0 }
+
+    const totalClaimable = validatorsRewards.reduce((sum, v) => sum.add(v.totalClaimable), BN_ZERO)
+    const totalEras = validatorsRewards.reduce((sum, v) => sum + v.unclaimedEras.length, 0)
+
+    const batchedEras = Math.min(totalEras, 40)
+
+    return {
+      totalClaimable,
+      totalEras,
+      batchedEras,
+      accountsCount: validatorsRewards.length,
     }
-  }, [validatorsRewards, modalData?.address])
+  }, [validatorsRewards])
 
-  const selectedRewards = useMemo(
-    () => validatorsRewards?.find((v) => v.address === selectedAccount?.address),
-    [validatorsRewards, selectedAccount]
-  )
-
-  // Create batch transaction for claiming all unclaimed eras
   const transaction = useMemo(() => {
-    if (!api || !selectedRewards || !selectedRewards.unclaimedEras.length) return undefined
+    if (!api || !validatorsRewards || validatorsRewards.length === 0) return undefined
 
-    const payoutCalls = selectedRewards.unclaimedEras.map((era: number) =>
-      api.tx.staking.payoutStakers(selectedRewards.address, era)
+    const payoutCalls = validatorsRewards.flatMap((validator) =>
+      validator.unclaimedEras.map((era: number) => api.tx.staking.payoutStakers(validator.address, era))
     )
 
-    return payoutCalls.length === 1 ? payoutCalls[0] : api.tx.utility.batch(payoutCalls)
-  }, [api, selectedRewards])
+    const limitedCalls = payoutCalls.slice(0, 40)
+
+    return limitedCalls.length === 0
+      ? undefined
+      : limitedCalls.length === 1
+      ? limitedCalls[0]
+      : api.tx.utility.batchAll(limitedCalls)
+  }, [api, validatorsRewards])
+
+  const signerAccount = allAccounts[0]
 
   const { isReady, sign, paymentInfo, canAfford } = useSignAndSendTransaction({
     transaction,
-    signer: selectedAccount?.address ?? '',
+    signer: signerAccount?.address ?? '',
     service: service as any,
     skipQueryNode: true,
   })
@@ -192,63 +189,33 @@ export const ClaimStakingRewardsModal = () => {
   }
 
   if (state.matches('prepare')) {
+    const hasMoreThanLimit = totals.totalEras > totals.batchedEras
+
     return (
-      <Modal onClose={hideModal} modalSize="s" modalHeight="l">
+      <Modal onClose={hideModal} modalSize="s" modalHeight="s">
         <ModalHeader title="Claim Staking Rewards" onClick={hideModal} />
         <ModalBody>
           <RowGapBlock gap={20}>
             <TextMedium>
-              {selectedRewards ? (
-                <>
-                  You are about to claim <TokenValue value={selectedRewards.totalClaimable} /> from{' '}
-                  {selectedRewards.unclaimedEras.length} unclaimed era
-                  {selectedRewards.unclaimedEras.length !== 1 ? 's' : ''}.
-                </>
-              ) : (
-                <>Select the validator account for which you want to claim rewards.</>
-              )}
+              You are about to claim rewards from {totals.batchedEras} unclaimed era
+              {totals.batchedEras !== 1 ? 's' : ''} across {totals.accountsCount} validator account
+              {totals.accountsCount !== 1 ? 's' : ''}.
             </TextMedium>
-            <RowGapBlock gap={8}>
-              <ItemHeaders>
-                <Header>Validator Account</Header>
-                <Header>Unclaimed Eras</Header>
-                <Header>Total Claimable</Header>
-              </ItemHeaders>
-              <InputComponent
-                inputSize="l"
-                validation={canAfford ? undefined : 'invalid'}
-                message={isReady ? (canAfford ? '' : 'Insufficient balance to cover fee.') : ''}
-              >
-                <List>
-                  {validatorsRewards.map((validator: ValidatorClaimableRewards) => (
-                    <StyledListItem
-                      key={validator.address}
-                      onClick={() => setSelectedAccount(validator.account)}
-                      $isSelected={selectedAccount?.address === validator.address}
-                    >
-                      <AccountColumn>
-                        <TextMedium bold>{validator.account?.name || 'Unknown'}</TextMedium>
-                        <TextSmall lighter>{validator.address}</TextSmall>
-                      </AccountColumn>
-                      <CenterColumn>
-                        <TextMedium>{validator.unclaimedEras.length}</TextMedium>
-                      </CenterColumn>
-                      <RightColumn>
-                        <TokenValue value={validator.totalClaimable} />
-                      </RightColumn>
-                    </StyledListItem>
-                  ))}
-                </List>
-              </InputComponent>
-            </RowGapBlock>
+            {hasMoreThanLimit && (
+              <TextMedium lighter>
+                ℹ️ Due to transaction limits, this will claim {totals.batchedEras} of {totals.totalEras} unclaimed eras.
+                Run this action again to claim the remaining eras.
+              </TextMedium>
+            )}
+            {!canAfford && <TextMedium lighter>⚠️ Insufficient balance to cover transaction fee.</TextMedium>}
           </RowGapBlock>
         </ModalBody>
         <ModalTransactionFooter
           transactionFee={paymentInfo?.partialFee}
           next={{
             onClick: () => sign(),
-            label: 'Sign transaction and claim',
-            disabled: !isReady || !canAfford || !selectedAccount,
+            label: hasMoreThanLimit ? 'Sign and claim batch' : 'Sign and claim all',
+            disabled: !isReady || !canAfford,
           }}
         />
       </Modal>
@@ -257,70 +224,3 @@ export const ClaimStakingRewardsModal = () => {
 
   return null
 }
-
-const ItemHeaders = styled.div`
-  display: grid;
-  grid-template-rows: 1fr;
-  grid-template-columns: 2fr 1fr 1fr;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0 16px;
-  gap: 8px;
-`
-
-const Header = styled.div`
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: ${({ theme }) => theme.colors.black[400]};
-
-  &:nth-child(2) {
-    text-align: center;
-  }
-
-  &:last-child {
-    text-align: right;
-  }
-`
-
-const StyledListItem = styled(ListItem)<{ $isSelected?: boolean }>`
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  cursor: pointer;
-  background-color: ${({ $isSelected, theme }) => ($isSelected ? theme.colors.blue[50] : 'transparent')};
-  border: 1px solid ${({ $isSelected, theme }) => ($isSelected ? theme.colors.blue[500] : theme.colors.black[100])};
-  border-radius: 4px;
-  transition: all 0.2s;
-
-  &:hover {
-    background-color: ${({ theme }) => theme.colors.blue[50]};
-  }
-`
-
-const AccountColumn = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-`
-
-const CenterColumn = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-`
-
-const RightColumn = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-`
-
-const TextSmall = styled.span<{ lighter?: boolean }>`
-  font-size: 12px;
-  color: ${({ lighter, theme }) => (lighter ? theme.colors.black[400] : theme.colors.black[900])};
-  overflow: hidden;
-  text-overflow: ellipsis;
-`

@@ -5,7 +5,6 @@ import { AccountItemLoading } from '@/accounts/components/AccountItem/AccountIte
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { useMyBalances } from '@/accounts/hooks/useMyBalances'
 import { filterAccounts } from '@/accounts/model/filterAccounts'
-import { SortKey, setOrder, sortAccounts } from '@/accounts/model/sortAccounts'
 import { ButtonPrimary } from '@/common/components/buttons'
 import MultilineChart, { MultilineChartData } from '@/common/components/charts/MultiLineChart'
 import { EmptyPagePlaceholder } from '@/common/components/EmptyPagePlaceholder/EmptyPagePlaceholder'
@@ -15,30 +14,40 @@ import { FilterTextSelect } from '@/common/components/selects'
 import { HeaderText, SortIconDown, SortIconUp } from '@/common/components/SortedListHeaders'
 import { Colors } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
+import { useAllAccountsStakingRewards } from '@/validators/hooks/useAllAccountsStakingRewards'
 import { ChartTimeRange, useMyStakingChartData } from '@/validators/hooks/useMyStakingChartData'
+import { useValidatorsList } from '@/validators/hooks/useValidatorsList'
+import { ValidatorSortKey, setValidatorOrder, sortValidatorAccounts } from '@/validators/model/sortValidatorAccounts'
 
 import { ValidatorAccountItem } from './dashboard/ValidatorAccountItem'
+import { NorminatorDashboardItem } from './nominator/NominatorItems'
 
 export function Overview() {
   const { allAccounts, hasAccounts, isLoading, wallet } = useMyAccounts()
   const { showModal } = useModal()
   const [isDisplayAll] = useState(true)
   const balances = useMyBalances()
-  const [sortBy, setSortBy] = useState<SortKey>('name')
+  const [sortBy, setSortBy] = useState<ValidatorSortKey>('claimable')
   const [isDescending, setDescending] = useState(false)
   const [chartTimeRange, setChartTimeRange] = useState<ChartTimeRange>('month')
+  const { validatorsWithDetails } = useValidatorsList()
   const visibleAccounts = useMemo(
     () => filterAccounts(allAccounts, isDisplayAll, balances),
     [JSON.stringify(allAccounts), isDisplayAll, hasAccounts]
   )
+
+  // Fetch staking rewards for all accounts to enable sorting
+  const stakingRewardsMap = useAllAccountsStakingRewards(visibleAccounts)
+
   const sortedAccounts = useMemo(
-    () => sortAccounts(visibleAccounts, balances, sortBy, isDescending),
-    [visibleAccounts, balances, sortBy, isDescending]
+    () => sortValidatorAccounts(visibleAccounts, sortBy, isDescending, stakingRewardsMap),
+    [visibleAccounts, sortBy, isDescending, stakingRewardsMap]
   )
 
   const chartData = useMyStakingChartData(chartTimeRange)
 
-  const getOnSort = (key: SortKey) => () => setOrder(key, sortBy, setSortBy, isDescending, setDescending)
+  const getOnSort = (key: ValidatorSortKey) => () =>
+    setValidatorOrder(key, sortBy, setSortBy, isDescending, setDescending)
 
   const Header = ({ children, sortKey }: HeaderProps) => {
     return (
@@ -99,14 +108,14 @@ export function Overview() {
       <AccountsWrap>
         <ListHeaders>
           <Header sortKey="name">ACCOUNT</Header>
-          <Header sortKey="total">TOTAL EARNED</Header>
-          <Header sortKey="recoverable">CLAIMABLE</Header>
+          <Header sortKey="totalEarned">TOTAL EARNED</Header>
+          <Header sortKey="claimable">CLAIMABLE</Header>
         </ListHeaders>
         <List>
           {!isLoading ? (
             sortedAccounts.map((account) => (
               <ListItem key={account.address}>
-                <ValidatorAccountItem account={account} />
+                <ValidatorAccountItem account={account} stakingRewards={stakingRewardsMap?.get(account.address)} />
               </ListItem>
             ))
           ) : (
@@ -114,13 +123,32 @@ export function Overview() {
           )}
         </List>
       </AccountsWrap>
+      <NominatorDashboardWrap>
+        <NominatorListHeaders>
+          <NominatorListHeader>Validator</NominatorListHeader>
+          <NominatorListHeader>Total Reward</NominatorListHeader>
+          <NominatorListHeader>Health</NominatorListHeader>
+          <NominatorListHeader>Apr</NominatorListHeader>
+          <NominatorListHeader>7Days Apr</NominatorListHeader>
+          <NominatorListHeader>Slashed</NominatorListHeader>
+          <NominatorListHeader>Your stake</NominatorListHeader>
+          <NominatorListHeader>Claimable Reward</NominatorListHeader>
+        </NominatorListHeaders>
+        <List>
+          {validatorsWithDetails?.map((validator) => (
+            <ListItem key={validator.stashAccount} borderless>
+              <NorminatorDashboardItem validator={validator} />
+            </ListItem>
+          ))}
+        </List>
+      </NominatorDashboardWrap>
     </ContentWithTabs>
   )
 }
 
 interface HeaderProps {
   children: ReactNode
-  sortKey: SortKey
+  sortKey: ValidatorSortKey
 }
 const ChartWarp = styled.div`
   padding-bottom: 20px;
@@ -185,6 +213,51 @@ export const ListHeader = styled.span`
   user-select: none;
   cursor: pointer;
 
+  &:first-child {
+    text-align: left;
+    justify-self: start;
+  }
+`
+
+const NominatorDashboardWrap = styled.div`
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 16px auto;
+  grid-template-areas:
+    'validatorstablenav'
+    'validatorslist';
+  grid-row-gap: 4px;
+  width: 100%;
+  margin-top: 24px;
+`
+
+const NominatorListHeaders = styled.div`
+  display: grid;
+  grid-area: validatorstablenav;
+  grid-template-rows: 1fr;
+  grid-template-columns: 222px 141px 75px 30px 73px 55px 131px 120px 118px 30px 27px;
+  justify-content: space-between;
+  justify-items: center;
+  width: 100%;
+  padding-left: 9px;
+  padding-right: 8px;
+`
+
+const NominatorListHeader = styled.span`
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  align-content: center;
+  justify-self: start;
+  width: fit-content;
+  font-size: 10px;
+  line-height: 16px;
+  font-weight: 700;
+  color: ${Colors.Black[400]};
+  text-transform: uppercase;
+  text-align: right;
+  user-select: none;
+  cursor: pointer;
   &:first-child {
     text-align: left;
     justify-self: start;

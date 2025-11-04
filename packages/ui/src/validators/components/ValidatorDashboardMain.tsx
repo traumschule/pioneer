@@ -6,10 +6,9 @@ import { Tabs } from '@/common/components/Tabs'
 
 import { Nominators } from './Nominators'
 import { Overview } from './OverView'
-import { RewardHistory } from './RewardHistory'
 import { SlashingHistory } from './SlashingHistory'
 
-type ValidatorDashboardTab = 'overview' | 'nominators' | 'rewards' | 'slashing'
+type ValidatorDashboardTab = 'overview' | 'nominators' | 'slashing'
 
 export function ValidatorDashboardMain() {
   const [activeTab, setActiveTab] = useState<ValidatorDashboardTab>('overview')
@@ -26,11 +25,6 @@ export function ValidatorDashboardMain() {
       onClick: () => setActiveTab('nominators'),
     },
     {
-      title: 'Rewards History',
-      active: activeTab === 'rewards',
-      onClick: () => setActiveTab('rewards'),
-    },
-    {
       title: 'Slashing History',
       active: activeTab === 'slashing',
       onClick: () => setActiveTab('slashing'),
@@ -43,7 +37,6 @@ export function ValidatorDashboardMain() {
       <ValidatorDashboardWrap>
         {activeTab === 'overview' && <Overview />}
         {activeTab === 'nominators' && <Nominators />}
-        {activeTab === 'rewards' && <RewardHistory />}
         {activeTab === 'slashing' && <SlashingHistory />}
       </ValidatorDashboardWrap>
     </ContentWithTabs>

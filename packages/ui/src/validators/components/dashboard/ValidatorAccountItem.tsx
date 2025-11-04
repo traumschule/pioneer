@@ -1,37 +1,36 @@
 import React, { useState } from 'react'
-import { map, of, switchMap } from 'rxjs'
+import { combineLatest, map, of, switchMap } from 'rxjs'
 import styled from 'styled-components'
 
 import { AccountInfo } from '@/accounts/components/AccountInfo'
-import { useBalance } from '@/accounts/hooks/useBalance'
 import { Account } from '@/accounts/types'
 import { useApi } from '@/api/hooks/useApi'
 import { TransactionButtonWrapper } from '@/common/components/buttons/TransactionButton'
 import { TableListItemAsLinkHover } from '@/common/components/List'
 import { Skeleton } from '@/common/components/Skeleton'
 import { TokenValue } from '@/common/components/typography'
-import { BorderRad, Colors, ERA_DEPTH, Sizes, Transitions } from '@/common/constants'
+import { BorderRad, BN_ZERO, Colors, ERA_DEPTH, Sizes, Transitions } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
 import { useObservable } from '@/common/hooks/useObservable'
-import { isDefined, sumBN } from '@/common/utils'
+import { AccountStakingRewards } from '@/validators/hooks/useAllAccountsStakingRewards'
 
 import { ValidatorOverViewClaimButton } from '../styles'
 
 interface AccountItemDataProps {
   account: Account
+  stakingRewards?: AccountStakingRewards
 }
 
-export const ValidatorAccountItem = ({ account }: AccountItemDataProps) => {
+export const ValidatorAccountItem = ({ account, stakingRewards: propsStakingRewards }: AccountItemDataProps) => {
   const address = account.address
-  const balance = useBalance(address)
   const { showModal } = useModal()
   const { api } = useApi()
 
   const [isDropped, setDropped] = useState(false)
 
-  // Check if account has claimable rewards
-  const hasClaimableRewards = useObservable(() => {
-    if (!api || !address) return of(false)
+  // Get staking rewards data (total earned and claimable) - fallback if not provided
+  const fetchedStakingRewards = useObservable(() => {
+    if (!api || !address) return of(undefined)
 
     const eraInfo$ = api.query.staking.activeEra().pipe(
       map((activeEra) => {
@@ -43,28 +42,67 @@ export const ValidatorAccountItem = ({ account }: AccountItemDataProps) => {
 
     return eraInfo$.pipe(
       switchMap((eraInfo) => {
-        if (!eraInfo) return of(false)
+        if (!eraInfo) return of(undefined)
 
         return api.query.staking.bonded(address).pipe(
           switchMap((bonded) => {
-            if (bonded.isNone) return of(false)
+            if (bonded.isNone) return of(undefined)
 
             const controller = bonded.unwrap().toString()
             return api.query.staking.ledger(controller).pipe(
-              map((ledger) => {
-                if (ledger.isNone) return false
+              switchMap((ledger) => {
+                if (ledger.isNone) return of(undefined)
 
                 const ledgerData = ledger.unwrap()
                 const claimedRewards = ledgerData.claimedRewards.map((era) => era.toNumber())
 
-                // Check if there are any unclaimed eras within history depth
+                const unclaimedEras: number[] = []
                 for (let era = eraInfo.oldestEra; era < eraInfo.currentEra; era++) {
                   if (!claimedRewards.includes(era)) {
-                    return true
+                    unclaimedEras.push(era)
                   }
                 }
 
-                return false
+                const erasRewards$ = api.derive.staking.erasRewards()
+                const erasPoints$ = api.derive.staking.erasPoints()
+
+                return combineLatest([erasRewards$, erasPoints$]).pipe(
+                  map(([erasRewards, erasPoints]) => {
+                    const rewardsByEra = new Map(erasRewards.map((reward: any) => [reward.era.toNumber(), reward]))
+                    const pointsByEra = new Map(erasPoints.map((points: any) => [points.era.toNumber(), points]))
+
+                    let totalEarned = BN_ZERO
+                    let claimable = BN_ZERO
+
+                    for (let era = eraInfo.oldestEra; era < eraInfo.currentEra; era++) {
+                      const reward = rewardsByEra.get(era)
+                      const points = pointsByEra.get(era)
+
+                      if (!reward || !points || reward.eraReward.isZero()) continue
+
+                      const totalPoints = points.eraPoints.toNumber()
+                      if (totalPoints === 0) continue
+
+                      const validatorPoints = points.validators[address]
+                      if (validatorPoints) {
+                        const validatorPointsNum = validatorPoints.toNumber()
+                        const validatorReward = reward.eraReward.muln(validatorPointsNum).divn(totalPoints)
+
+                        totalEarned = totalEarned.add(validatorReward)
+
+                        if (unclaimedEras.includes(era)) {
+                          claimable = claimable.add(validatorReward)
+                        }
+                      }
+                    }
+
+                    return {
+                      totalEarned,
+                      claimable,
+                      hasClaimable: !claimable.isZero(),
+                    }
+                  })
+                )
               })
             )
           })
@@ -72,6 +110,9 @@ export const ValidatorAccountItem = ({ account }: AccountItemDataProps) => {
       })
     )
   }, [api?.isConnected, address])
+
+  // Use provided rewards if available, otherwise use fetched rewards
+  const stakingRewards = propsStakingRewards || fetchedStakingRewards
 
   const handleClaimReward = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -82,13 +123,14 @@ export const ValidatorAccountItem = ({ account }: AccountItemDataProps) => {
     <AccountItemWrapper>
       <AccountItemWrap key={address} onClick={() => setDropped(!isDropped)}>
         <AccountInfo account={account} />
-        <TokenValue value={balance?.total} isLoading={!isDefined(balance?.total)} />
-        <TokenValue
-          value={sumBN(balance?.recoverable, balance?.vestedClaimable)}
-          isLoading={!isDefined(balance?.recoverable)}
-        />
+        <TokenValue value={stakingRewards?.totalEarned} isLoading={!stakingRewards} />
+        <TokenValue value={stakingRewards?.claimable} isLoading={!stakingRewards} />
         <TransactionButtonWrapper>
-          <ValidatorOverViewClaimButton size="small" disabled={!hasClaimableRewards} onClick={handleClaimReward}>
+          <ValidatorOverViewClaimButton
+            size="small"
+            disabled={!stakingRewards?.hasClaimable}
+            onClick={handleClaimReward}
+          >
             Claim Reward
           </ValidatorOverViewClaimButton>
         </TransactionButtonWrapper>

@@ -11,13 +11,16 @@ import { TableListItemAsLinkHover } from '@/common/components/List'
 import { Skeleton } from '@/common/components/Skeleton'
 import { TextBig, TokenValue } from '@/common/components/typography'
 import { BorderRad, Colors, Sizes, Transitions } from '@/common/constants'
+import { useNominatorClaimableByValidator } from '@/validators/hooks/useNominatorClaimableByValidator'
+import { useNominatorValidatorInfo } from '@/validators/hooks/useNominatorValidatorInfo'
+import { useValidatorHealth } from '@/validators/hooks/useValidatorHealth'
 import { ValidatorWithDetails } from '@/validators/types/Validator'
 
 interface ValidatorItemProps {
   validator: ValidatorWithDetails
 }
 export const NorminatorDashboardItem = ({ validator }: ValidatorItemProps) => {
-  const { stashAccount, totalRewards } = validator
+  const { stashAccount, totalRewards, APR, slashed } = validator
   const validatorAccount = useMemo(
     () => ({
       name: 'unknown',
@@ -27,7 +30,15 @@ export const NorminatorDashboardItem = ({ validator }: ValidatorItemProps) => {
     [validator]
   )
 
-  const daysApr: number = -0.3
+  // Get real data using hooks
+  const health = useValidatorHealth(validator)
+  const nominatorInfo = useNominatorValidatorInfo(validator)
+  const claimableReward = useNominatorClaimableByValidator(validator)
+
+  const validatorAPR = APR ?? 0
+  const last7DaysAPR = nominatorInfo.last7DaysAPR
+  const slashedCount = slashed ?? 0
+  const yourStake = nominatorInfo.yourStake
 
   return (
     <ValidatorItemWrapper>
@@ -35,15 +46,17 @@ export const NorminatorDashboardItem = ({ validator }: ValidatorItemProps) => {
         <AccountInfo account={validatorAccount} />
         <TokenValue value={totalRewards} />
 
-        <PercentageChart percentage={10} />
-        <TextBig>{-12}%</TextBig>
-        <TextBig>
-          {daysApr > 0 ? <span style={{ color: 'red' }}>{daysApr}</span> : <span color="green">{daysApr}</span>}%
+        <PercentageChart percentage={health} />
+        <TextBig style={{ color: validatorAPR >= 0 ? Colors.Green[500] : Colors.Red[400] }}>
+          {validatorAPR.toFixed(2)}%
         </TextBig>
-        <TextBig>{3}</TextBig>
+        <TextBig style={{ color: last7DaysAPR >= 0 ? Colors.Green[500] : Colors.Red[400] }}>
+          {last7DaysAPR.toFixed(2)}%
+        </TextBig>
+        <TextBig>{slashedCount}</TextBig>
 
-        <TokenValue value={totalRewards} />
-        <TokenValue value={totalRewards} />
+        <TokenValue value={yourStake} />
+        <TokenValue value={claimableReward} />
         <ButtonPrimary size="small" onClick={() => alert(`You select validator:${stashAccount} to nominate`)}>
           {' '}
           Nominate{' '}
