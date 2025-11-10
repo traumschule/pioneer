@@ -44,6 +44,17 @@ export function Overview() {
     [visibleAccounts, sortBy, isDescending, stakingRewardsMap]
   )
 
+  const accountsWithClaimable = useMemo(() => {
+    if (!stakingRewardsMap) {
+      return sortedAccounts
+    }
+
+    return sortedAccounts.filter((account) => stakingRewardsMap.get(account.address)?.hasClaimable)
+  }, [sortedAccounts, stakingRewardsMap])
+
+  const accountsToRender = stakingRewardsMap ? accountsWithClaimable : sortedAccounts
+  const shouldShowAccountsSection = isLoading || accountsToRender.length > 0
+
   const chartData = useMyStakingChartData(chartTimeRange)
 
   const getOnSort = (key: ValidatorSortKey) => () =>
@@ -105,24 +116,29 @@ export function Overview() {
         </ChartHeader>
         <MultilineChart data={chartData || defaultChartData} />
       </ChartWarp>
-      <AccountsWrap>
-        <ListHeaders>
-          <Header sortKey="name">ACCOUNT</Header>
-          <Header sortKey="totalEarned">TOTAL EARNED</Header>
-          <Header sortKey="claimable">CLAIMABLE</Header>
-        </ListHeaders>
-        <List>
-          {!isLoading ? (
-            sortedAccounts.map((account) => (
-              <ListItem key={account.address}>
-                <ValidatorAccountItem account={account} stakingRewards={stakingRewardsMap?.get(account.address)} />
-              </ListItem>
-            ))
-          ) : (
-            <AccountItemLoading count={5} />
-          )}
-        </List>
-      </AccountsWrap>
+      {shouldShowAccountsSection && (
+        <AccountsSection>
+          <AccountsSectionTitle>Unclaimed Rewards</AccountsSectionTitle>
+          <AccountsWrap>
+            <ListHeaders>
+              <Header sortKey="name">ACCOUNT</Header>
+              <Header sortKey="totalEarned">TOTAL EARNED</Header>
+              <Header sortKey="claimable">CLAIMABLE</Header>
+            </ListHeaders>
+            <List>
+              {!isLoading ? (
+                accountsToRender.map((account) => (
+                  <ListItem key={account.address}>
+                    <ValidatorAccountItem account={account} stakingRewards={stakingRewardsMap?.get(account.address)} />
+                  </ListItem>
+                ))
+              ) : (
+                <AccountItemLoading count={5} />
+              )}
+            </List>
+          </AccountsWrap>
+        </AccountsSection>
+      )}
       <NominatorDashboardWrap>
         <NominatorListHeaders>
           <NominatorListHeader>Validator</NominatorListHeader>
@@ -167,6 +183,20 @@ const ChartHeader = styled.div`
   grid-column-gap: 8px;
   justify-content: space-between;
   gap: 8px;
+`
+
+const AccountsSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+const AccountsSectionTitle = styled(HeaderText)`
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: ${Colors.Black[400]};
 `
 
 const AccountsWrap = styled.div`
