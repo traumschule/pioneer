@@ -73,7 +73,11 @@ import {
   ClaimStakingRewardsModal,
   ClaimStakingRewardsModalCall,
 } from '@/validators/modals/ClaimStakingRewardsModal'
+import { ManageStashActionModal, ManageStashActionModalCall } from '@/validators/modals/ManageStashActionModal'
 import { NominatingRedirectModal, NominatingRedirectModalCall } from '@/validators/modals/NominatingRedirectModal'
+import { SetNomineesModal, SetNomineesModalCall } from '@/validators/modals/SetNomineesModal'
+import { StopStakingModal, StopStakingModalCall } from '@/validators/modals/StopStakingModal'
+import { UnbondStakingModal, UnbondStakingModalCall } from '@/validators/modals/UnbondStakingModal'
 import { ApplicationDetailsModal, ApplicationDetailsModalCall } from '@/working-groups/modals/ApplicationDetailsModal'
 import { ApplyForRoleModal, ApplyForRoleModalCall } from '@/working-groups/modals/ApplyForRoleModal'
 import { ChangeAccountModal, ChangeAccountModalCall } from '@/working-groups/modals/ChangeAccountModal'
@@ -84,7 +88,7 @@ import {
 } from '@/working-groups/modals/IncreaseWorkerStakeModal'
 import { LeaveRoleModal, LeaveRoleModalCall } from '@/working-groups/modals/LeaveRoleModal'
 
-export type ModalNames =
+type ModalNamesBase =
   | ModalName<TransferInvitesModalCall>
   | ModalName<MemberModalCall>
   | ModalName<BuyMembershipModalCall>
@@ -137,7 +141,13 @@ export type ModalNames =
   | ModalName<EmailConfirmationModalCall>
   | ModalName<NominatingRedirectModalCall>
   | ModalName<ClaimStakingRewardsModalCall>
+  | ModalName<ManageStashActionModalCall>
+  | ModalName<SetNomineesModalCall>
+  | ModalName<StopStakingModalCall>
+  | ModalName<UnbondStakingModalCall>
   | ModalName<CancelProposalModalCall>
+
+export type ModalNames = Extract<ModalNamesBase, string>
 
 const modals: Record<ModalNames, ReactElement> = {
   Member: <MemberProfile />,
@@ -192,6 +202,10 @@ const modals: Record<ModalNames, ReactElement> = {
   EmailConfirmationModal: <EmailConfirmationModal />,
   NominatingRedirect: <NominatingRedirectModal />,
   ClaimStakingRewardsModal: <ClaimStakingRewardsModal />,
+  ManageStashActionModal: <ManageStashActionModal />,
+  SetNomineesModal: <SetNomineesModal />,
+  StopStakingModal: <StopStakingModal />,
+  UnbondStakingModal: <UnbondStakingModal />,
   CancelProposalModal: <CancelProposalModal />,
 }
 
@@ -210,6 +224,10 @@ const GUEST_ACCESSIBLE_MODALS: ModalNames[] = [
   'DisconnectWallet',
   'ClaimVestingModal',
   'ClaimStakingRewardsModal',
+  'ManageStashActionModal',
+  'SetNomineesModal',
+  'StopStakingModal',
+  'UnbondStakingModal',
   'ReportContentModal',
   'EmailConfirmationModal',
   'VoteRationaleModal',

@@ -6,6 +6,7 @@ import { BountyHeaderButtonsProps } from '@/bounty/components/BountyPreviewHeade
 import { TransactionButton } from '@/common/components/buttons/TransactionButton'
 import { PlusIcon } from '@/common/components/icons/PlusIcon'
 import { useModal } from '@/common/hooks/useModal'
+import { AnyModalCall } from '@/common/providers/modal/types'
 import { useMyMemberships } from '@/memberships/hooks/useMyMemberships'
 import { SwitchMemberModalCall } from '@/memberships/modals/SwitchMemberModal'
 
@@ -32,9 +33,9 @@ export const BountyHeaderButton = <T extends ModalNames>({
     }
 
     showModal({
-      modal: modal,
+      modal,
       data: modalData,
-    })
+    } as AnyModalCall)
   }, [validMemberIds, active])
 
   return (

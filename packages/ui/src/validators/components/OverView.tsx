@@ -12,11 +12,14 @@ import { List, ListItem } from '@/common/components/List'
 import { ContentWithTabs } from '@/common/components/page/PageContent'
 import { FilterTextSelect } from '@/common/components/selects'
 import { HeaderText, SortIconDown, SortIconUp } from '@/common/components/SortedListHeaders'
-import { Colors } from '@/common/constants'
+import { BN_ZERO, Colors } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
 import { useAllAccountsStakingRewards } from '@/validators/hooks/useAllAccountsStakingRewards'
 import { ChartTimeRange, useMyStakingChartData } from '@/validators/hooks/useMyStakingChartData'
 import { useValidatorsList } from '@/validators/hooks/useValidatorsList'
+import { useMyStashPositions } from '@/validators/hooks/useMyStashPositions'
+import { useMyStakingInfo } from '@/validators/hooks/useMyStakingInfo'
+import { useMyStakingRewards } from '@/validators/hooks/useMyStakingRewards'
 import { ValidatorSortKey, setValidatorOrder, sortValidatorAccounts } from '@/validators/model/sortValidatorAccounts'
 
 import { ValidatorAccountItem } from './dashboard/ValidatorAccountItem'
@@ -31,6 +34,9 @@ export function Overview() {
   const [isDescending, setDescending] = useState(false)
   const [chartTimeRange, setChartTimeRange] = useState<ChartTimeRange>('month')
   const { validatorsWithDetails } = useValidatorsList()
+  const stakingInfo = useMyStakingInfo()
+  const stakingRewards = useMyStakingRewards()
+  const stashPositions = useMyStashPositions()
   const visibleAccounts = useMemo(
     () => filterAccounts(allAccounts, isDisplayAll, balances),
     [JSON.stringify(allAccounts), isDisplayAll, hasAccounts]
@@ -56,6 +62,18 @@ export function Overview() {
   const shouldShowAccountsSection = isLoading || accountsToRender.length > 0
 
   const chartData = useMyStakingChartData(chartTimeRange)
+
+  const positions = stashPositions ?? []
+  const accountsMap = useMemo(
+    () => new Map(allAccounts.map((account) => [account.address, account])),
+    [allAccounts]
+  )
+  const validatorsMap = useMemo(
+    () => new Map((validatorsWithDetails ?? []).map((validator) => [validator.stashAccount, validator])),
+    [validatorsWithDetails]
+  )
+  const totalStake = stakingInfo?.totalStake ?? BN_ZERO
+  const totalClaimable = stakingRewards?.claimableRewards ?? BN_ZERO
 
   const getOnSort = (key: ValidatorSortKey) => () =>
     setValidatorOrder(key, sortBy, setSortBy, isDescending, setDescending)
@@ -141,19 +159,27 @@ export function Overview() {
       )}
       <NominatorDashboardWrap>
         <NominatorListHeaders>
-          <NominatorListHeader>Validator</NominatorListHeader>
-          <NominatorListHeader>Total Reward</NominatorListHeader>
-          <NominatorListHeader>Health</NominatorListHeader>
-          <NominatorListHeader>Apr</NominatorListHeader>
-          <NominatorListHeader>7Days Apr</NominatorListHeader>
-          <NominatorListHeader>Slashed</NominatorListHeader>
-          <NominatorListHeader>Your stake</NominatorListHeader>
+          <NominatorListHeader>Account</NominatorListHeader>
+          <NominatorListHeader>Role</NominatorListHeader>
+          <NominatorListHeader>Active Stake</NominatorListHeader>
+          <NominatorListHeader>Total Stake</NominatorListHeader>
+          <NominatorListHeader>Unlocking</NominatorListHeader>
+          <NominatorListHeader>Assignments</NominatorListHeader>
           <NominatorListHeader>Claimable Reward</NominatorListHeader>
+          <NominatorListHeader>Primary Action</NominatorListHeader>
+          <NominatorListHeader />
+          <NominatorListHeader />
         </NominatorListHeaders>
         <List>
-          {validatorsWithDetails?.map((validator) => (
-            <ListItem key={validator.stashAccount} borderless>
-              <NorminatorDashboardItem validator={validator} />
+          {positions.map((position) => (
+            <ListItem key={position.stash} borderless>
+              <NorminatorDashboardItem
+                account={accountsMap.get(position.stash)}
+                position={position}
+                validatorDetails={validatorsMap.get(position.stash)}
+                totalStaked={totalStake}
+                totalClaimable={totalClaimable}
+              />
             </ListItem>
           ))}
         </List>
@@ -265,7 +291,7 @@ const NominatorListHeaders = styled.div`
   display: grid;
   grid-area: validatorstablenav;
   grid-template-rows: 1fr;
-  grid-template-columns: 222px 141px 75px 30px 73px 55px 131px 120px 118px 30px 27px;
+  grid-template-columns: 280px 100px 120px 120px 120px 140px 140px 140px 40px 40px;
   justify-content: space-between;
   justify-items: center;
   width: 100%;

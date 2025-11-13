@@ -1,110 +1,373 @@
-import React, { useMemo } from 'react'
+import BN from 'bn.js'
+import React, { useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import { AccountInfo } from '@/accounts/components/AccountInfo'
+import { Account } from '@/accounts/types'
 import { ButtonGhost, ButtonPrimary } from '@/common/components/buttons'
 import { TransactionButtonWrapper } from '@/common/components/buttons/TransactionButton'
-import { PercentageChart } from '@/common/components/charts/PercentageChart'
+import { useOutsideClick } from '@/common/hooks/useOutsideClick'
 import { EditSymbol } from '@/common/components/icons/symbols'
 import { DeleteSymbol } from '@/common/components/icons/symbols/DeleteSymbol'
 import { TableListItemAsLinkHover } from '@/common/components/List'
-import { Skeleton } from '@/common/components/Skeleton'
-import { TextBig, TokenValue } from '@/common/components/typography'
-import { BorderRad, Colors, Sizes, Transitions } from '@/common/constants'
-import { useNominatorClaimableByValidator } from '@/validators/hooks/useNominatorClaimableByValidator'
-import { useNominatorValidatorInfo } from '@/validators/hooks/useNominatorValidatorInfo'
-import { useValidatorHealth } from '@/validators/hooks/useValidatorHealth'
+import { TextMedium, TextSmall, TokenValue } from '@/common/components/typography'
+import { BorderRad, Colors, Sizes, Transitions, BN_ZERO } from '@/common/constants'
+import { useModal } from '@/common/hooks/useModal'
+import { shortenAddress } from '@/common/model/formatters'
+import { MyStashPosition } from '@/validators/hooks/useMyStashPositions'
+import { ManageStashAction, ManageStashActionModalCall } from '@/validators/modals/ManageStashActionModal'
+import { SetNomineesModalCall } from '@/validators/modals/SetNomineesModal'
+import { StopStakingModalCall } from '@/validators/modals/StopStakingModal'
+import { UnbondStakingModalCall } from '@/validators/modals/UnbondStakingModal'
 import { ValidatorWithDetails } from '@/validators/types/Validator'
 
-interface ValidatorItemProps {
-  validator: ValidatorWithDetails
+interface Props {
+  account?: Account
+  position: MyStashPosition
+  validatorDetails?: ValidatorWithDetails
+  totalStaked: BN
+  totalClaimable: BN
 }
-export const NorminatorDashboardItem = ({ validator }: ValidatorItemProps) => {
-  const { stashAccount, totalRewards, APR, slashed } = validator
-  const validatorAccount = useMemo(
-    () => ({
-      name: 'unknown',
-      address: stashAccount,
-      source: '',
-    }),
-    [validator]
+
+export const NorminatorDashboardItem = ({ account, position, validatorDetails, totalStaked, totalClaimable }: Props) => {
+  const { showModal } = useModal()
+  const [isMenuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useOutsideClick(menuRef, isMenuOpen, () => setMenuOpen(false))
+
+  const accountInfo = useMemo<Account>(() => {
+    if (account) {
+      return account
+    }
+
+    return {
+      address: position.stash,
+      name: shortenAddress(position.stash),
+      source: 'external',
+    }
+  }, [account, position.stash])
+
+  const roleLabel = useMemo(() => {
+    switch (position.role) {
+      case 'validator':
+        return 'Validator'
+      case 'nominator':
+        return 'Nominator'
+      default:
+        return 'Inactive'
+    }
+  }, [position.role])
+
+  const roleVariant = useMemo(() => {
+    switch (position.role) {
+      case 'validator':
+        return 'success'
+      case 'nominator':
+        return 'info'
+      default:
+        return 'neutral'
+    }
+  }, [position.role])
+
+  const assignmentsCount = useMemo(() => {
+    if (position.role === 'validator') {
+      return validatorDetails?.staking?.nominators.length ?? 0
+    }
+    return position.nominations.length
+  }, [position.role, validatorDetails?.staking?.nominators, position.nominations])
+
+  const assignmentsLabel = position.role === 'validator' ? 'nominators' : 'targets'
+
+  const unlockingTotal = useMemo(
+    () => position.unlocking.reduce((sum, chunk) => sum.add(chunk.value), new BN(0)),
+    [position.unlocking]
   )
 
-  // Get real data using hooks
-  const health = useValidatorHealth(validator)
-  const nominatorInfo = useNominatorValidatorInfo(validator)
-  const claimableReward = useNominatorClaimableByValidator(validator)
+  const claimableReward = useMemo(() => {
+    if (totalClaimable.isZero() || totalStaked.isZero() || position.activeStake.isZero()) {
+      return BN_ZERO
+    }
 
-  const validatorAPR = APR ?? 0
-  const last7DaysAPR = nominatorInfo.last7DaysAPR
-  const slashedCount = slashed ?? 0
-  const yourStake = nominatorInfo.yourStake
+    return totalClaimable.mul(position.activeStake).div(totalStaked)
+  }, [position.activeStake, totalClaimable, totalStaked])
+
+  const canStop = position.role !== 'inactive'
+  const canUnbond = position.role === 'inactive' && (!position.totalStake.isZero() || !unlockingTotal.isZero())
+
+  const openManageActionModal = (action: ManageStashAction) =>
+    showModal<ManageStashActionModalCall>({
+      modal: 'ManageStashActionModal',
+      data: {
+        stash: position.stash,
+        controller: position.controller,
+        action,
+        activeStake: position.activeStake,
+        totalStake: position.totalStake,
+        unlocking: position.unlocking,
+      },
+    })
+
+  const openSetNomineesModal = () =>
+    showModal<SetNomineesModalCall>({
+      modal: 'SetNomineesModal',
+      data: {
+        stash: position.stash,
+        nominations: position.nominations,
+      },
+    })
+
+  const openStopStakingModal = () =>
+    showModal<StopStakingModalCall>({
+      modal: 'StopStakingModal',
+      data: {
+        stash: position.stash,
+        role: position.role,
+      },
+    })
+
+  const openUnbondModal = () =>
+    showModal<UnbondStakingModalCall>({
+      modal: 'UnbondStakingModal',
+      data: {
+        stash: position.stash,
+        controller: position.controller,
+        bonded: position.totalStake,
+      },
+    })
+
+  const menuItems = [
+    {
+      label: 'Bond more / Rebond after unbonding',
+      action: 'bondRebond' as ManageStashAction,
+      disabled: !position.controller,
+    },
+    {
+      label: 'Withdraw funds after unbonding period',
+      action: 'withdraw' as ManageStashAction,
+      disabled: !position.controller || unlockingTotal.isZero(),
+    },
+    {
+      label: 'Change controller account',
+      action: 'changeController' as ManageStashAction,
+      disabled: false,
+    },
+    {
+      label: 'Change reward destination',
+      action: 'changeReward' as ManageStashAction,
+      disabled: false,
+    },
+  ] as const
+
+  const primaryAction =
+    position.role === 'nominator'
+      ? openSetNomineesModal
+      : () => openManageActionModal('bondRebond')
+  const primaryLabel = position.role === 'nominator' ? 'Set nominees' : 'Manage stake'
 
   return (
     <ValidatorItemWrapper>
-      <ValidatorItemWrap key={stashAccount} onClick={() => alert('here comes the handler which shows validator card')}>
-        <AccountInfo account={validatorAccount} />
-        <TokenValue value={totalRewards} />
+      <ValidatorItemWrap>
+        <AccountCell>
+          <AccountInfo account={accountInfo} />
+        </AccountCell>
 
-        <PercentageChart percentage={health} />
-        <TextBig style={{ color: validatorAPR >= 0 ? Colors.Green[500] : Colors.Red[400] }}>
-          {validatorAPR.toFixed(2)}%
-        </TextBig>
-        <TextBig style={{ color: last7DaysAPR >= 0 ? Colors.Green[500] : Colors.Red[400] }}>
-          {last7DaysAPR.toFixed(2)}%
-        </TextBig>
-        <TextBig>{slashedCount}</TextBig>
+        <RoleCell>
+          <RoleBadge role={roleVariant}>{roleLabel}</RoleBadge>
+        </RoleCell>
 
-        <TokenValue value={yourStake} />
+        <TokenValue value={position.activeStake} />
+        <TokenValue value={position.totalStake} />
+        <TokenValue value={unlockingTotal} />
+
+        <AssignmentsCell>
+          <TextMedium>{assignmentsCount}</TextMedium>
+          <TextSmall lighter>{assignmentsLabel}</TextSmall>
+        </AssignmentsCell>
+
         <TokenValue value={claimableReward} />
-        <ButtonPrimary size="small" onClick={() => alert(`You select validator:${stashAccount} to nominate`)}>
-          {' '}
-          Nominate{' '}
+
+        <ButtonPrimary size="small" onClick={primaryAction}>
+          {primaryLabel}
         </ButtonPrimary>
+
         <TransactionButtonWrapper>
-          <ButtonForTransfer size="small" square onClick={() => {}}>
-            <EditSymbol />
-          </ButtonForTransfer>
+          <MenuContainer ref={menuRef}>
+            <ButtonForTransfer
+              size="small"
+              square
+              onClick={(event) => {
+                event.stopPropagation()
+                setMenuOpen((prev) => !prev)
+              }}
+              aria-haspopup="menu"
+              aria-expanded={isMenuOpen}
+            >
+              <EditSymbol />
+            </ButtonForTransfer>
+            {isMenuOpen && (
+              <MenuDropdown role="menu">
+                {menuItems.map(({ label, action, disabled }) => (
+                  <MenuItem
+                    key={label}
+                    disabled={disabled}
+                    onClick={() => {
+                      if (disabled) return
+                      setMenuOpen(false)
+                      openManageActionModal(action)
+                    }}
+                  >
+                    {label}
+                  </MenuItem>
+                ))}
+              </MenuDropdown>
+            )}
+          </MenuContainer>
         </TransactionButtonWrapper>
-        <TransactionButtonWrapper>
-          <ButtonForTransfer size="small" square onClick={() => {}}>
-            <DeleteSymbol />
-          </ButtonForTransfer>
-        </TransactionButtonWrapper>
+
+        {canStop ? (
+          <ButtonGhost size="small" onClick={openStopStakingModal} disabled={!position.controller}>
+            Stop
+          </ButtonGhost>
+        ) : (
+          <TransactionButtonWrapper>
+            <ButtonForTransfer
+              size="small"
+              square
+              disabled={!canUnbond}
+              onClick={() => {
+                if (!canUnbond) return
+                openUnbondModal()
+              }}
+            >
+              <DeleteSymbol />
+            </ButtonForTransfer>
+          </TransactionButtonWrapper>
+        )}
       </ValidatorItemWrap>
     </ValidatorItemWrapper>
   )
 }
-const ButtonForTransfer = styled(ButtonGhost)`
-  z-index: 1;
-  svg {
-    color: ${Colors.Black[900]};
-  }
-`
+
 const ValidatorItemWrapper = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
   border: 1px solid ${Colors.Black[100]};
   border-radius: ${BorderRad.s};
-  cursor: pointer;
   transition: ${Transitions.all};
   ${TableListItemAsLinkHover}
 `
 
 export const ValidatorItemWrap = styled.div`
   display: grid;
-  grid-template-columns: 224px 120px 57px 40px 50px 34px 120px 120px 90px 30px 30px;
+  grid-template-columns: 280px 100px 120px 120px 120px 140px 140px 140px 40px 86px;
   grid-template-rows: 1fr;
   justify-content: space-between;
   justify-items: start;
   align-items: center;
   width: 100%;
-  height: ${Sizes.accountHeight};
+  min-height: ${Sizes.accountHeight};
   padding: 16px 8px 16px 16px;
   margin-left: -1px;
-  ${Skeleton} {
-    min-width: 80%;
-    height: 1.2rem;
+  gap: 16px;
+`
+
+const AccountCell = styled.div`
+  display: flex;
+  align-items: center;
+  width: 100%;
+`
+
+const RoleCell = styled.div`
+  display: flex;
+  align-items: center;
+`
+
+const AssignmentsCell = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`
+
+const ButtonForTransfer = styled(ButtonGhost)`
+  position: relative;
+  z-index: 1;
+  svg {
+    color: ${Colors.Black[900]};
   }
+`
+
+const MenuDropdown = styled.div`
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  gap: 8px;
+  min-width: 240px;
+  padding: 16px 20px;
+  background-color: ${Colors.White};
+  border: 1px solid ${Colors.Black[100]};
+  border-radius: ${BorderRad.m};
+  box-shadow: 0 12px 24px rgba(17, 17, 17, 0.12);
+  z-index: 10;
+`
+
+const MenuItem = styled.button<{ disabled?: boolean }>`
+  display: flex;
+  width: 100%;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  text-align: left;
+  color: ${({ disabled }) => (disabled ? Colors.Black[300] : Colors.Black[900])};
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: ${({ disabled }) => (disabled ? 'not-allowed' : 'pointer')};
+
+  &:hover,
+  &:focus {
+    color: ${({ disabled }) => (disabled ? Colors.Black[300] : Colors.Blue[500])};
+  }
+`
+
+const MenuContainer = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+`
+
+type RoleVariant = 'success' | 'info' | 'neutral'
+
+const RoleBadge = styled.span<{ role: RoleVariant }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: ${BorderRad.full};
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background-color: ${({ role }) => {
+    switch (role) {
+      case 'success':
+        return Colors.Green[100]
+      case 'info':
+        return Colors.Blue[100]
+      default:
+        return Colors.Black[100]
+    }
+  }};
+  color: ${({ role }) => {
+    switch (role) {
+      case 'success':
+        return Colors.Green[500]
+      case 'info':
+        return Colors.Blue[600]
+      default:
+        return Colors.Black[600]
+    }
+  }};
 `

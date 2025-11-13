@@ -1,16 +1,19 @@
-import React from 'react'
+import React, { useMemo, useState } from 'react'
 import styled from 'styled-components'
 
 import { PageHeader } from '@/app/components/PageHeader'
 import { PageLayout } from '@/app/components/PageLayout'
 import { List, ListItem } from '@/common/components/List'
+import { Tabs } from '@/common/components/Tabs'
 import { RowGapBlock } from '@/common/components/page/PageContent'
 import { MultiTextValueStat, MultiValueStat, Statistics, TokenValueStat } from '@/common/components/statistics'
 import { BN_ZERO, Colors } from '@/common/constants'
+import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { NorminatorDashboardItem } from '@/validators/components/nominator/NominatorItems'
 import { useMyStakingAPR } from '@/validators/hooks/useMyStakingAPR'
 import { useMyStakingInfo } from '@/validators/hooks/useMyStakingInfo'
 import { useMyStakingRewards } from '@/validators/hooks/useMyStakingRewards'
+import { useMyStashPositions, MyStakingRole } from '@/validators/hooks/useMyStashPositions'
 import { useValidatorsList } from '@/validators/hooks/useValidatorsList'
 
 import { ClaimAllButton } from './components/ClaimAllButton'
@@ -21,6 +24,67 @@ export const NominatorDashboard = () => {
   const stakingInfo = useMyStakingInfo()
   const stakingRewards = useMyStakingRewards()
   const stakingAPR = useMyStakingAPR()
+  const { allAccounts } = useMyAccounts()
+  const stashPositions = useMyStashPositions()
+  const [filter, setFilter] = useState<'all' | MyStakingRole>('all')
+
+  const accountsMap = useMemo(
+    () => new Map(allAccounts.map((account) => [account.address, account])),
+    [allAccounts]
+  )
+
+  const validatorsMap = useMemo(
+    () => new Map((validatorsWithDetails ?? []).map((validator) => [validator.stashAccount, validator])),
+    [validatorsWithDetails]
+  )
+
+  const positions = stashPositions ?? []
+
+  const counts = useMemo(() => {
+    const base = {
+      all: positions.length,
+      validator: 0,
+      nominator: 0,
+      inactive: 0,
+    }
+
+    positions.forEach((position) => {
+      base[position.role] += 1
+    })
+
+    return base
+  }, [positions])
+
+  const filteredPositions = useMemo(() => {
+    if (filter === 'all') return positions
+    return positions.filter((position) => position.role === filter)
+  }, [positions, filter])
+
+  const filterTabs = [
+    {
+      title: 'All Stashes',
+      key: 'all',
+      count: counts.all,
+    },
+    {
+      title: 'Nominators',
+      key: 'nominator',
+      count: counts.nominator,
+    },
+    {
+      title: 'Validators',
+      key: 'validator',
+      count: counts.validator,
+    },
+    {
+      title: 'Inactive',
+      key: 'inactive',
+      count: counts.inactive,
+    },
+  ] satisfies Array<{ title: string; key: 'all' | MyStakingRole; count: number }>
+
+  const totalStake = stakingInfo?.totalStake ?? BN_ZERO
+  const totalClaimable = stakingRewards?.claimableRewards ?? BN_ZERO
 
   return (
     <PageLayout
@@ -75,20 +139,37 @@ export const NominatorDashboard = () => {
       }
       main={
         <ValidatorsListWrap>
+          <Tabs
+            tabs={filterTabs.map(({ title, key, count }) => ({
+              title,
+              count,
+              active: filter === key,
+              onClick: () => setFilter(key),
+            }))}
+            tabsSize="xs"
+          />
           <ListHeaders>
-            <ListHeader>Validator</ListHeader>
-            <ListHeader>Total Reward</ListHeader>
-            <ListHeader>Health</ListHeader>
-            <ListHeader>Apr</ListHeader>
-            <ListHeader>7Days Apr</ListHeader>
-            <ListHeader>Slashed</ListHeader>
-            <ListHeader>Your stake</ListHeader>
+            <ListHeader>Account</ListHeader>
+            <ListHeader>Role</ListHeader>
+            <ListHeader>Active Stake</ListHeader>
+            <ListHeader>Total Stake</ListHeader>
+            <ListHeader>Unlocking</ListHeader>
+            <ListHeader>Assignments</ListHeader>
             <ListHeader>Claimable Reward</ListHeader>
+            <ListHeader>Primary Action</ListHeader>
+            <ListHeader />
+            <ListHeader />
           </ListHeaders>
           <List>
-            {validatorsWithDetails?.map((validator) => (
-              <ListItem key={validator.stashAccount} borderless>
-                <NorminatorDashboardItem validator={validator} />
+            {filteredPositions.map((position) => (
+              <ListItem key={position.stash} borderless>
+                <NorminatorDashboardItem
+                  account={accountsMap.get(position.stash)}
+                  position={position}
+                  validatorDetails={validatorsMap.get(position.stash)}
+                  totalStaked={totalStake}
+                  totalClaimable={totalClaimable}
+                />
               </ListItem>
             ))}
           </List>
@@ -113,12 +194,11 @@ const ListHeaders = styled.div`
   display: grid;
   grid-area: validatorstablenav;
   grid-template-rows: 1fr;
-  grid-template-columns: 222px 141px 75px 30px 73px 55px 131px 120px 118px 30px 27px;
+  grid-template-columns: 280px 100px 120px 120px 120px 140px 140px 140px 40px 40px;
   justify-content: space-between;
   justify-items: center;
   width: 100%;
-  padding-left: 9px;
-  padding-right: 8px;
+  padding: 0 8px;
 `
 
 export const ListHeader = styled.span`
