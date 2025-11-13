@@ -1,5 +1,4 @@
 import React, { useState } from 'react'
-import styled from 'styled-components'
 
 import { BadgesRow, BadgeStatus } from '@/common/components/BadgeStatus'
 import { ButtonLink } from '@/common/components/buttons'
