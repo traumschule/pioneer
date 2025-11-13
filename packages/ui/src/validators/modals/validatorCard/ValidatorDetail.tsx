@@ -13,18 +13,31 @@ import { plural } from '@/common/helpers'
 import { useModal } from '@/common/hooks/useModal'
 import { whenDefined } from '@/common/utils'
 import RewardPointsChart from '@/validators/components/RewardPointChart'
+import { useSelectedValidators } from '@/validators/context/SelectedValidatorsContext'
 
 import { ValidatorWithDetails } from '../../types'
+import { BondModalCall } from '../BondModal'
+import { NominateValidatorModalCall } from '../NominateValidatorModal'
 import { NominatingRedirectModalCall } from '../NominatingRedirectModal'
+import { PayoutModalCall } from '../PayoutModal'
+import { StakeModalCall } from '../StakeModal'
+import { UnbondModalCall } from '../UnbondModal'
 
 interface Props {
   validator: ValidatorWithDetails
   eraIndex: number | undefined
   hideModal: () => void
+  isNominated?: boolean
 }
 
-export const ValidatorDetail = ({ validator, eraIndex, hideModal }: Props) => {
+export const ValidatorDetail = ({ validator, eraIndex, hideModal, isNominated = false }: Props) => {
   const { showModal } = useModal<NominatingRedirectModalCall>()
+  const { showModal: showNominateModal } = useModal<NominateValidatorModalCall>()
+  const { showModal: showStakeModal } = useModal<StakeModalCall>()
+  const { showModal: showBondModal } = useModal<BondModalCall>()
+  const { showModal: showUnbondModal } = useModal<UnbondModalCall>()
+  const { showModal: showPayoutModal } = useModal<PayoutModalCall>()
+  const { isSelected, toggleSelection, selectedValidators, maxSelection } = useSelectedValidators()
 
   const uptime = whenDefined(validator.rewardPointsHistory, (rewardPointsHistory) => {
     const firstEra = rewardPointsHistory.at(0)?.era
@@ -33,6 +46,48 @@ export const ValidatorDetail = ({ validator, eraIndex, hideModal }: Props) => {
     const validatedEra = rewardPointsHistory.filter(({ rewardPoints }) => rewardPoints > 0).length
     return `${((validatedEra / totalEras) * 100).toFixed(1)}%`
   })
+
+  const isValidatorSelected = isSelected(validator)
+  const canSelect = !isValidatorSelected && selectedValidators.length < maxSelection
+
+  const handleActionClick = async (action: string) => {
+    const validatorAddress = validator.stashAccount
+
+    switch (action) {
+      case 'Select':
+        toggleSelection(validator)
+        break
+      case 'Nominate':
+        await new Promise((resolve) => setTimeout(resolve, 0)) // Make async
+        hideModal()
+        showNominateModal({ modal: 'NominateValidator', data: { validatorAddress } })
+        break
+      case 'Stake':
+        await new Promise((resolve) => setTimeout(resolve, 0)) // Make async
+        hideModal()
+        showStakeModal({ modal: 'Stake', data: { validatorAddress } })
+        break
+      case 'Bond':
+        await new Promise((resolve) => setTimeout(resolve, 0)) // Make async
+        hideModal()
+        showBondModal({ modal: 'Bond', data: { validatorAddress } })
+        break
+      case 'Unbond':
+        await new Promise((resolve) => setTimeout(resolve, 0)) // Make async
+        hideModal()
+        showUnbondModal({ modal: 'Unbond', data: { validatorAddress } })
+        break
+      case 'Payout':
+        await new Promise((resolve) => setTimeout(resolve, 0)) // Make async
+        hideModal()
+        showPayoutModal({ modal: 'Payout', data: { validatorAddress } })
+        break
+      default:
+        await new Promise((resolve) => setTimeout(resolve, 0)) // Make async
+        hideModal()
+        showModal({ modal: 'NominatingRedirect' })
+    }
+  }
 
   return (
     <>
@@ -97,15 +152,35 @@ export const ValidatorDetail = ({ validator, eraIndex, hideModal }: Props) => {
         </Details>
       </SidePaneBody>
       <ModalFooter>
-        <ButtonPrimary
-          size="small"
-          onClick={() => {
-            hideModal()
-            showModal({ modal: 'NominatingRedirect' })
-          }}
-        >
-          Nominate
-        </ButtonPrimary>
+        <ActionButtonsContainer>
+          {isNominated ? (
+            <ButtonPrimary
+              size="small"
+              onClick={() => handleActionClick('Nominate')}
+              title="Nominate this validator to receive rewards. You can change nominations each era without unbonding."
+            >
+              Nominate
+            </ButtonPrimary>
+          ) : isValidatorSelected ? (
+            <ButtonPrimary
+              size="small"
+              onClick={() => handleActionClick('Select')}
+              disabled={true}
+              title="This validator is already selected for nomination."
+            >
+              Selected
+            </ButtonPrimary>
+          ) : (
+            <ButtonPrimary
+              size="small"
+              onClick={() => handleActionClick('Select')}
+              disabled={!canSelect}
+              title={canSelect ? 'Select this validator for nomination' : 'Maximum number of validators selected'}
+            >
+              {canSelect ? 'Select' : 'Max Reached'}
+            </ButtonPrimary>
+          )}
+        </ActionButtonsContainer>
       </ModalFooter>
     </>
   )
@@ -139,4 +214,14 @@ const RewardPointsChartWrapper = styled.div`
     min-width: 500px;
     height: 200px;
   }
+`
+
+const ActionButtonsContainer = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
+  position: relative;
 `
