@@ -47,20 +47,13 @@ export const OpeningFormPreview = React.memo(({ opening }: OpeningFormPreviewPro
       </Row>
       <Row>
         <RowGapBlock gap={4}>
-          <TimeLeftWrap>
-            <Row>
-              <Label>Time left</Label>
-              {relativeTime(opening.expectedEnding)}
-            </Row>
-            <PercentageChart percentage={percentTimeLeft(opening.expectedEnding, opening.createdAtBlock.timestamp)} />
-          </TimeLeftWrap>
           <TextSmall>Created: {formatDateString(opening.createdAtBlock.timestamp)}</TextSmall>
         </RowGapBlock>
       </Row>
       <Row>
         <RowGapBlock gap={4}>
           <Label>Applicants</Label>
-          <Fraction numerator={opening.hiring.limit} denominator={opening.hiring.current} />
+          <Fraction numerator={opening.hiring.current} denominator={opening.hiring.limit} />
         </RowGapBlock>
       </Row>
       <Row>
