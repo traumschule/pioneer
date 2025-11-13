@@ -16,14 +16,14 @@ import { BN_ZERO, Colors } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
 import { useAllAccountsStakingRewards } from '@/validators/hooks/useAllAccountsStakingRewards'
 import { ChartTimeRange, useMyStakingChartData } from '@/validators/hooks/useMyStakingChartData'
-import { useValidatorsList } from '@/validators/hooks/useValidatorsList'
-import { useMyStashPositions } from '@/validators/hooks/useMyStashPositions'
 import { useMyStakingInfo } from '@/validators/hooks/useMyStakingInfo'
 import { useMyStakingRewards } from '@/validators/hooks/useMyStakingRewards'
+import { useMyStashPositions } from '@/validators/hooks/useMyStashPositions'
+import { useValidatorsList } from '@/validators/hooks/useValidatorsList'
 import { ValidatorSortKey, setValidatorOrder, sortValidatorAccounts } from '@/validators/model/sortValidatorAccounts'
 
 import { ValidatorAccountItem } from './dashboard/ValidatorAccountItem'
-import { NorminatorDashboardItem } from './nominator/NominatorItems'
+import { NominatorPositionsTable } from './nominator/NominatorPositionsTable'
 
 export function Overview() {
   const { allAccounts, hasAccounts, isLoading, wallet } = useMyAccounts()
@@ -64,10 +64,7 @@ export function Overview() {
   const chartData = useMyStakingChartData(chartTimeRange)
 
   const positions = stashPositions ?? []
-  const accountsMap = useMemo(
-    () => new Map(allAccounts.map((account) => [account.address, account])),
-    [allAccounts]
-  )
+  const accountsMap = useMemo(() => new Map(allAccounts.map((account) => [account.address, account])), [allAccounts])
   const validatorsMap = useMemo(
     () => new Map((validatorsWithDetails ?? []).map((validator) => [validator.stashAccount, validator])),
     [validatorsWithDetails]
@@ -157,33 +154,13 @@ export function Overview() {
           </AccountsWrap>
         </AccountsSection>
       )}
-      <NominatorDashboardWrap>
-        <NominatorListHeaders>
-          <NominatorListHeader>Account</NominatorListHeader>
-          <NominatorListHeader>Role</NominatorListHeader>
-          <NominatorListHeader>Active Stake</NominatorListHeader>
-          <NominatorListHeader>Total Stake</NominatorListHeader>
-          <NominatorListHeader>Unlocking</NominatorListHeader>
-          <NominatorListHeader>Assignments</NominatorListHeader>
-          <NominatorListHeader>Claimable Reward</NominatorListHeader>
-          <NominatorListHeader>Primary Action</NominatorListHeader>
-          <NominatorListHeader />
-          <NominatorListHeader />
-        </NominatorListHeaders>
-        <List>
-          {positions.map((position) => (
-            <ListItem key={position.stash} borderless>
-              <NorminatorDashboardItem
-                account={accountsMap.get(position.stash)}
-                position={position}
-                validatorDetails={validatorsMap.get(position.stash)}
-                totalStaked={totalStake}
-                totalClaimable={totalClaimable}
-              />
-            </ListItem>
-          ))}
-        </List>
-      </NominatorDashboardWrap>
+      <PositionsSection
+        positions={positions}
+        accountsMap={accountsMap}
+        validatorsMap={validatorsMap}
+        totalStake={totalStake}
+        totalClaimable={totalClaimable}
+      />
     </ContentWithTabs>
   )
 }
@@ -275,47 +252,6 @@ export const ListHeader = styled.span`
   }
 `
 
-const NominatorDashboardWrap = styled.div`
-  display: grid;
-  grid-template-columns: 1fr;
-  grid-template-rows: 16px auto;
-  grid-template-areas:
-    'validatorstablenav'
-    'validatorslist';
-  grid-row-gap: 4px;
-  width: 100%;
+const PositionsSection = styled(NominatorPositionsTable)`
   margin-top: 24px;
-`
-
-const NominatorListHeaders = styled.div`
-  display: grid;
-  grid-area: validatorstablenav;
-  grid-template-rows: 1fr;
-  grid-template-columns: 280px 100px 120px 120px 120px 140px 140px 140px 40px 40px;
-  justify-content: space-between;
-  justify-items: center;
-  width: 100%;
-  padding-left: 9px;
-  padding-right: 8px;
-`
-
-const NominatorListHeader = styled.span`
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  align-content: center;
-  justify-self: start;
-  width: fit-content;
-  font-size: 10px;
-  line-height: 16px;
-  font-weight: 700;
-  color: ${Colors.Black[400]};
-  text-transform: uppercase;
-  text-align: right;
-  user-select: none;
-  cursor: pointer;
-  &:first-child {
-    text-align: left;
-    justify-self: start;
-  }
 `

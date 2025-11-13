@@ -6,13 +6,13 @@ import { AccountInfo } from '@/accounts/components/AccountInfo'
 import { Account } from '@/accounts/types'
 import { ButtonGhost, ButtonPrimary } from '@/common/components/buttons'
 import { TransactionButtonWrapper } from '@/common/components/buttons/TransactionButton'
-import { useOutsideClick } from '@/common/hooks/useOutsideClick'
 import { EditSymbol } from '@/common/components/icons/symbols'
 import { DeleteSymbol } from '@/common/components/icons/symbols/DeleteSymbol'
 import { TableListItemAsLinkHover } from '@/common/components/List'
 import { TextMedium, TextSmall, TokenValue } from '@/common/components/typography'
 import { BorderRad, Colors, Sizes, Transitions, BN_ZERO } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
+import { useOutsideClick } from '@/common/hooks/useOutsideClick'
 import { shortenAddress } from '@/common/model/formatters'
 import { MyStashPosition } from '@/validators/hooks/useMyStashPositions'
 import { ManageStashAction, ManageStashActionModalCall } from '@/validators/modals/ManageStashActionModal'
@@ -29,7 +29,13 @@ interface Props {
   totalClaimable: BN
 }
 
-export const NorminatorDashboardItem = ({ account, position, validatorDetails, totalStaked, totalClaimable }: Props) => {
+export const NorminatorDashboardItem = ({
+  account,
+  position,
+  validatorDetails,
+  totalStaked,
+  totalClaimable,
+}: Props) => {
   const { showModal } = useModal()
   const [isMenuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -136,33 +142,39 @@ export const NorminatorDashboardItem = ({ account, position, validatorDetails, t
       },
     })
 
-  const menuItems = [
+  const menuItems: Array<{
+    label: string
+    onClick: () => void
+    disabled?: boolean
+  }> = [
     {
       label: 'Bond more / Rebond after unbonding',
-      action: 'bondRebond' as ManageStashAction,
+      onClick: () => openManageActionModal('bondRebond'),
       disabled: !position.controller,
     },
     {
       label: 'Withdraw funds after unbonding period',
-      action: 'withdraw' as ManageStashAction,
+      onClick: () => openManageActionModal('withdraw'),
       disabled: !position.controller || unlockingTotal.isZero(),
     },
     {
       label: 'Change controller account',
-      action: 'changeController' as ManageStashAction,
-      disabled: false,
+      onClick: () => openManageActionModal('changeController'),
     },
     {
       label: 'Change reward destination',
-      action: 'changeReward' as ManageStashAction,
-      disabled: false,
+      onClick: () => openManageActionModal('changeReward'),
     },
-  ] as const
+  ]
 
-  const primaryAction =
-    position.role === 'nominator'
-      ? openSetNomineesModal
-      : () => openManageActionModal('bondRebond')
+  if (position.role === 'nominator') {
+    menuItems.push({
+      label: 'Set nominees',
+      onClick: openSetNomineesModal,
+    })
+  }
+
+  const primaryAction = position.role === 'nominator' ? openSetNomineesModal : () => openManageActionModal('bondRebond')
   const primaryLabel = position.role === 'nominator' ? 'Set nominees' : 'Manage stake'
 
   return (
@@ -207,14 +219,14 @@ export const NorminatorDashboardItem = ({ account, position, validatorDetails, t
             </ButtonForTransfer>
             {isMenuOpen && (
               <MenuDropdown role="menu">
-                {menuItems.map(({ label, action, disabled }) => (
+                {menuItems.map(({ label, disabled, onClick }) => (
                   <MenuItem
                     key={label}
                     disabled={disabled}
                     onClick={() => {
                       if (disabled) return
                       setMenuOpen(false)
-                      openManageActionModal(action)
+                      onClick()
                     }}
                   >
                     {label}
