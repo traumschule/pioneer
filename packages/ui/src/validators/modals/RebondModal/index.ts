@@ -1,6 +1,2 @@
-/**
- * Temporary stub for the removed Rebond modal.
- */
-export {}
-
-
+export { RebondModal } from './RebondModal'
+export type { RebondModalCall } from './types'

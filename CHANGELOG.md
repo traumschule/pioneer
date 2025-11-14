@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.9.0] - 2025-11-01
+### Added
+- Latest Posts
+- Mythreads counter
+- My role tooltip
+- Add proposal tooltip
+- Move forum action buttions
+
+### Fixed
+- Update JSG mainnet RPC
+- Restore votes fix
+- Balance tooltip orientation
+- Show 50 Validators per page
+- Icon attributes
+- External links validation
+
+### Contributors
+- [Create](/goldstarhigher)
+- [L1 Media](/traumschule)
+- [Lezek Wiesner](/lezek123)
+- [Mkbeefcake](/Mkbeefcake)
+- [Oleksander Korn](/oleksanderkorn)
+- [Theophile Sandoz](/thesan)
+
+## [3.8.0] - 2025-04-15
+
+### Added
+- "Started at" and "Estimated end" dates & blocks on council page,
+- Current term number on council page,
+- Voting statistics on current election page (votes, revealed votes, stake, revealed stake),
+- Election result on past election page,
+- Election result on pase elections listing,
+- Stake vs revealed stake stats on past election page.
+
+### Fixed
+- Made council term number on past council page and past council listing human-readable.
+
+## [3.7.3] - 2025-04-01
+
+### Fixed
+- Replace joystream.subscan.io links with explorer.joystream.org.
+
 ## [3.7.2] - 2024-08-10
 
 ### Fixed
@@ -412,8 +454,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.1] - 2022-12-02
 
-[unreleased]: https://github.com/Joystream/pioneer/compare/v3.7.2...HEAD
-[3.8.0]: https://github.com/Joystream/pioneer/compare/v3.7.1...v3.7.2
+[unreleased]: https://github.com/Joystream/pioneer/compare/v3.8.0...HEAD
+[3.8.0]: https://github.com/Joystream/pioneer/compare/v3.7.3...v3.8.0
+[3.7.3]: https://github.com/Joystream/pioneer/compare/v3.7.2...v3.7.3
+[3.7.2]: https://github.com/Joystream/pioneer/compare/v3.7.1...v3.7.2
 [3.7.1]: https://github.com/Joystream/pioneer/compare/v3.7.0...v3.7.1
 [3.7.0]: https://github.com/Joystream/pioneer/compare/v3.6.0...v3.7.0
 [3.6.0]: https://github.com/Joystream/pioneer/compare/v3.5.2...v3.6.0

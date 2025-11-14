@@ -1,6 +1,2 @@
-/**
- * Temporary stub for the legacy Validate modal.
- */
-export {}
-
-
+export { ValidateModal } from './ValidateModal'
+export type { ValidateModalCall } from './types'

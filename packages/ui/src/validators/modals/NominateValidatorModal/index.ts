@@ -1,8 +1,2 @@
-/**
- * Placeholder for the legacy Nominate Validator modal. This will be replaced by
- * the new nomination flow. Keeping an empty module avoids TypeScript resolution
- * errors while the feature is rebuilt.
- */
-export {}
-
-
+export { NominateValidatorModal } from './NominateValidatorModal'
+export type { NominateValidatorModalCall } from './types'

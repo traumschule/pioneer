@@ -1,6 +1,2 @@
-/**
- * Temporary stub for the legacy Unbond modal.
- */
-export {}
-
-
+export { UnbondModal } from './UnbondModal'
+export type { UnbondModalCall } from './types'

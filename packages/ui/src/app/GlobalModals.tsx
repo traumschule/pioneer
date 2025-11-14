@@ -69,15 +69,16 @@ import { CancelProposalModal, CancelProposalModalCall } from '@/proposals/modals
 import { VoteForProposalModal, VoteForProposalModalCall } from '@/proposals/modals/VoteForProposal'
 import { VoteRationaleModalCall } from '@/proposals/modals/VoteRationale/types'
 import { VoteRationale } from '@/proposals/modals/VoteRationale/VoteRationale'
-import {
-  ClaimStakingRewardsModal,
-  ClaimStakingRewardsModalCall,
-} from '@/validators/modals/ClaimStakingRewardsModal'
-import { ManageStashActionModal, ManageStashActionModalCall } from '@/validators/modals/ManageStashActionModal'
+import { BondModal, BondModalCall } from '@/validators/modals/BondModal'
+import { NominateValidatorModal } from '@/validators/modals/NominateValidatorModal'
+import { NominateValidatorModalCall } from '@/validators/modals/NominateValidatorModal/types'
 import { NominatingRedirectModal, NominatingRedirectModalCall } from '@/validators/modals/NominatingRedirectModal'
-import { SetNomineesModal, SetNomineesModalCall } from '@/validators/modals/SetNomineesModal'
-import { StopStakingModal, StopStakingModalCall } from '@/validators/modals/StopStakingModal'
-import { UnbondStakingModal, UnbondStakingModalCall } from '@/validators/modals/UnbondStakingModal'
+import { PayoutModal, PayoutModalCall } from '@/validators/modals/PayoutModal'
+import { RebagModal, RebagModalCall } from '@/validators/modals/RebagModal'
+import { RebondModal, RebondModalCall } from '@/validators/modals/RebondModal'
+import { StakeModal, StakeModalCall } from '@/validators/modals/StakeModal'
+import { UnbondModal, UnbondModalCall } from '@/validators/modals/UnbondModal'
+import { ValidateModal, ValidateModalCall } from '@/validators/modals/ValidateModal'
 import { ApplicationDetailsModal, ApplicationDetailsModalCall } from '@/working-groups/modals/ApplicationDetailsModal'
 import { ApplyForRoleModal, ApplyForRoleModalCall } from '@/working-groups/modals/ApplyForRoleModal'
 import { ChangeAccountModal, ChangeAccountModalCall } from '@/working-groups/modals/ChangeAccountModal'
@@ -140,11 +141,14 @@ type ModalNamesBase =
   | ModalName<EmailSubscriptionModalCall>
   | ModalName<EmailConfirmationModalCall>
   | ModalName<NominatingRedirectModalCall>
-  | ModalName<ClaimStakingRewardsModalCall>
-  | ModalName<ManageStashActionModalCall>
-  | ModalName<SetNomineesModalCall>
-  | ModalName<StopStakingModalCall>
-  | ModalName<UnbondStakingModalCall>
+  | ModalName<BondModalCall>
+  | ModalName<UnbondModalCall>
+  | ModalName<PayoutModalCall>
+  | ModalName<NominateValidatorModalCall>
+  | ModalName<StakeModalCall>
+  | ModalName<ValidateModalCall>
+  | ModalName<RebagModalCall>
+  | ModalName<RebondModalCall>
   | ModalName<CancelProposalModalCall>
 
 export type ModalNames = Extract<ModalNamesBase, string>
@@ -201,11 +205,6 @@ const modals: Record<ModalNames, ReactElement> = {
   EmailSubscriptionModal: <EmailSubscriptionModal />,
   EmailConfirmationModal: <EmailConfirmationModal />,
   NominatingRedirect: <NominatingRedirectModal />,
-  ClaimStakingRewardsModal: <ClaimStakingRewardsModal />,
-  ManageStashActionModal: <ManageStashActionModal />,
-  SetNomineesModal: <SetNomineesModal />,
-  StopStakingModal: <StopStakingModal />,
-  UnbondStakingModal: <UnbondStakingModal />,
   CancelProposalModal: <CancelProposalModal />,
 }
 
@@ -261,20 +260,25 @@ export const GlobalModals = () => {
 
   const potentialFallback = useGlobalModalHandler(currentModalMachine, hideModal)
 
-  if (modal && !GUEST_ACCESSIBLE_MODALS.includes(modal as ModalNames) && !activeMember) {
-    if (wallet) {
-      showModal<SwitchMemberModalCall>({
-        modal: 'SwitchMember',
-        data: {
-          originalModalName: modal as ModalNames,
-          originalModalData: modalData,
-        },
-      })
-    } else {
-      showModal({
-        modal: 'OnBoardingModal',
-      })
+  useEffect(() => {
+    if (modal && !GUEST_ACCESSIBLE_MODALS.includes(modal as ModalNames) && !activeMember) {
+      if (wallet) {
+        showModal<SwitchMemberModalCall>({
+          modal: 'SwitchMember',
+          data: {
+            originalModalName: modal as ModalNames,
+            originalModalData: modalData,
+          },
+        })
+      } else {
+        showModal({
+          modal: 'OnBoardingModal',
+        })
+      }
     }
+  }, [modal, activeMember, wallet, modalData, showModal])
+
+  if (modal && !GUEST_ACCESSIBLE_MODALS.includes(modal as ModalNames) && !activeMember) {
     return null
   }
 

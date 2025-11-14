@@ -1,6 +1,2 @@
-/**
- * Temporary stub for the legacy Stake modal.
- */
-export {}
-
-
+export { StakeModal } from './StakeModal'
+export type { StakeModalCall } from './types'
