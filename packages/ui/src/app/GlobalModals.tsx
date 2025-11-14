@@ -70,14 +70,19 @@ import { VoteForProposalModal, VoteForProposalModalCall } from '@/proposals/moda
 import { VoteRationaleModalCall } from '@/proposals/modals/VoteRationale/types'
 import { VoteRationale } from '@/proposals/modals/VoteRationale/VoteRationale'
 import { BondModal, BondModalCall } from '@/validators/modals/BondModal'
+import { ClaimStakingRewardsModal, ClaimStakingRewardsModalCall } from '@/validators/modals/ClaimStakingRewardsModal'
+import { ManageStashActionModal, ManageStashActionModalCall } from '@/validators/modals/ManageStashActionModal'
 import { NominateValidatorModal } from '@/validators/modals/NominateValidatorModal'
 import { NominateValidatorModalCall } from '@/validators/modals/NominateValidatorModal/types'
 import { NominatingRedirectModal, NominatingRedirectModalCall } from '@/validators/modals/NominatingRedirectModal'
 import { PayoutModal, PayoutModalCall } from '@/validators/modals/PayoutModal'
 import { RebagModal, RebagModalCall } from '@/validators/modals/RebagModal'
 import { RebondModal, RebondModalCall } from '@/validators/modals/RebondModal'
+import { SetNomineesModal, SetNomineesModalCall } from '@/validators/modals/SetNomineesModal'
 import { StakeModal, StakeModalCall } from '@/validators/modals/StakeModal'
+import { StopStakingModal, StopStakingModalCall } from '@/validators/modals/StopStakingModal'
 import { UnbondModal, UnbondModalCall } from '@/validators/modals/UnbondModal'
+import { UnbondStakingModal, UnbondStakingModalCall } from '@/validators/modals/UnbondStakingModal'
 import { ValidateModal, ValidateModalCall } from '@/validators/modals/ValidateModal'
 import { ApplicationDetailsModal, ApplicationDetailsModalCall } from '@/working-groups/modals/ApplicationDetailsModal'
 import { ApplyForRoleModal, ApplyForRoleModalCall } from '@/working-groups/modals/ApplyForRoleModal'
@@ -143,6 +148,11 @@ type ModalNamesBase =
   | ModalName<NominatingRedirectModalCall>
   | ModalName<BondModalCall>
   | ModalName<UnbondModalCall>
+  | ModalName<ClaimStakingRewardsModalCall>
+  | ModalName<ManageStashActionModalCall>
+  | ModalName<SetNomineesModalCall>
+  | ModalName<StopStakingModalCall>
+  | ModalName<UnbondStakingModalCall>
   | ModalName<PayoutModalCall>
   | ModalName<NominateValidatorModalCall>
   | ModalName<StakeModalCall>
@@ -205,7 +215,20 @@ const modals: Record<ModalNames, ReactElement> = {
   EmailSubscriptionModal: <EmailSubscriptionModal />,
   EmailConfirmationModal: <EmailConfirmationModal />,
   NominatingRedirect: <NominatingRedirectModal />,
+  Bond: <BondModal />,
+  Unbond: <UnbondModal />,
+  Payout: <PayoutModal />,
+  NominateValidator: <NominateValidatorModal />,
+  Stake: <StakeModal />,
+  StopStakingModal: <StopStakingModal />,
+  UnbondStakingModal: <UnbondStakingModal />,
+  Validate: <ValidateModal />,
+  Rebag: <RebagModal />,
+  Rebond: <RebondModal />,
   CancelProposalModal: <CancelProposalModal />,
+  ClaimStakingRewardsModal: <ClaimStakingRewardsModal />,
+  ManageStashActionModal: <ManageStashActionModal />,
+  SetNomineesModal: <SetNomineesModal />,
 }
 
 const GUEST_ACCESSIBLE_MODALS: ModalNames[] = [
