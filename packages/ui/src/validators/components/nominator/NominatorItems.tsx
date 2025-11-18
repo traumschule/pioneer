@@ -1,5 +1,6 @@
 import BN from 'bn.js'
 import React, { useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import styled from 'styled-components'
 
 import { AccountInfo } from '@/accounts/components/AccountInfo'
@@ -10,7 +11,7 @@ import { EditSymbol } from '@/common/components/icons/symbols'
 import { DeleteSymbol } from '@/common/components/icons/symbols/DeleteSymbol'
 import { TableListItemAsLinkHover } from '@/common/components/List'
 import { TextMedium, TextSmall, TokenValue } from '@/common/components/typography'
-import { BorderRad, Colors, Sizes, Transitions, BN_ZERO } from '@/common/constants'
+import { BorderRad, Colors, Sizes, Transitions, BN_ZERO, ZIndex } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
 import { useOutsideClick } from '@/common/hooks/useOutsideClick'
 import { shortenAddress } from '@/common/model/formatters'
@@ -38,9 +39,13 @@ export const NorminatorDashboardItem = ({
 }: Props) => {
   const { showModal } = useModal()
   const [isMenuOpen, setMenuOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
-  useOutsideClick(menuRef, isMenuOpen, () => setMenuOpen(false))
+  useOutsideClick(menuRef, isMenuOpen, () => {
+    setMenuOpen(false)
+    setMenuPosition(null)
+  })
 
   const accountInfo = useMemo<Account>(() => {
     if (account) {
@@ -210,6 +215,28 @@ export const NorminatorDashboardItem = ({
               square
               onClick={(event) => {
                 event.stopPropagation()
+                if (!isMenuOpen && menuRef.current) {
+                  const rect = menuRef.current.getBoundingClientRect()
+                  const menuHeight = 200 // Approximate menu height
+                  const spaceBelow = window.innerHeight - rect.bottom
+                  const spaceAbove = rect.top
+                  
+                  let top: number
+                  if (spaceBelow < menuHeight && spaceAbove > menuHeight) {
+                    // Position above if not enough space below
+                    top = rect.top - menuHeight - 8
+                  } else {
+                    // Position below
+                    top = rect.bottom + 8
+                  }
+                  
+                  setMenuPosition({
+                    top,
+                    right: window.innerWidth - rect.right,
+                  })
+                } else {
+                  setMenuPosition(null)
+                }
                 setMenuOpen((prev) => !prev)
               }}
               aria-haspopup="menu"
@@ -217,23 +244,27 @@ export const NorminatorDashboardItem = ({
             >
               <EditSymbol />
             </ButtonForTransfer>
-            {isMenuOpen && (
-              <MenuDropdown role="menu">
-                {menuItems.map(({ label, disabled, onClick }) => (
-                  <MenuItem
-                    key={label}
-                    disabled={disabled}
-                    onClick={() => {
-                      if (disabled) return
-                      setMenuOpen(false)
-                      onClick()
-                    }}
-                  >
-                    {label}
-                  </MenuItem>
-                ))}
-              </MenuDropdown>
-            )}
+            {isMenuOpen &&
+              menuPosition &&
+              createPortal(
+                <MenuDropdown role="menu" style={{ top: `${menuPosition.top}px`, right: `${menuPosition.right}px` }}>
+                  {menuItems.map(({ label, disabled, onClick }) => (
+                    <MenuItem
+                      key={label}
+                      disabled={disabled}
+                      onClick={() => {
+                        if (disabled) return
+                        setMenuOpen(false)
+                        setMenuPosition(null)
+                        onClick()
+                      }}
+                    >
+                      {label}
+                    </MenuItem>
+                  ))}
+                </MenuDropdown>,
+                document.body
+              )}
           </MenuContainer>
         </TransactionButtonWrapper>
 
@@ -311,9 +342,7 @@ const ButtonForTransfer = styled(ButtonGhost)`
 `
 
 const MenuDropdown = styled.div`
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  position: fixed;
   display: grid;
   gap: 8px;
   min-width: 240px;
@@ -322,7 +351,7 @@ const MenuDropdown = styled.div`
   border: 1px solid ${Colors.Black[100]};
   border-radius: ${BorderRad.m};
   box-shadow: 0 12px 24px rgba(17, 17, 17, 0.12);
-  z-index: 10;
+  z-index: ${ZIndex.dropdown};
 `
 
 const MenuItem = styled.button<{ disabled?: boolean }>`
