@@ -13,7 +13,7 @@ import { NorminatorDashboardItem } from './NominatorItems'
 
 type FilterKey = 'all' | MyStakingRole
 
-interface Props {
+export interface Props {
   positions: MyStashPosition[]
   accountsMap: Map<string, Account>
   validatorsMap: Map<string, ValidatorWithDetails>
@@ -114,7 +114,7 @@ export const NominatorPositionsTable = ({
         <ListHeader>Active Stake</ListHeader>
         <ListHeader>Total Stake</ListHeader>
         <ListHeader>Unlocking</ListHeader>
-        <ListHeader>Assignments</ListHeader>
+        <ListHeader>Nominations</ListHeader>
         <ListHeader>Claimable Reward</ListHeader>
         <ListHeader>Primary Action</ListHeader>
         <ListHeader />
@@ -188,4 +188,3 @@ const ListHeader = styled.span`
     justify-self: start;
   }
 `
-

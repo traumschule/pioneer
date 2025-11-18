@@ -26,6 +26,15 @@ interface UseSignAndSendTransactionParams {
   setBlockHash?: SetBlockHash
 }
 
+const isCancelledMessage = (error: unknown) => {
+  const message = typeof error === 'string' ? error : (error as Error)?.message
+  if (!message) {
+    return false
+  }
+  const normalized = message.toLowerCase()
+  return normalized.includes('cancelled') || normalized.includes('canceled')
+}
+
 const observeTransaction = (
   transaction: Observable<ISubmittableResult>,
   send: Sender<any>,
@@ -74,7 +83,7 @@ const observeTransaction = (
   const errorHandler = (error: string | Error) => {
     subscription.unsubscribe()
 
-    if (error === 'Cancelled') {
+    if (isCancelledMessage(error)) {
       return send({ type: 'CANCELED', events: [] })
     }
 

@@ -20,6 +20,7 @@ export const ValidatorDashboard = () => {
 
   return (
     <PageLayout
+      fullWidth
       header={
         <RowGapBlock gap={24}>
           <PageHeader title="Validators" tabs={<ValidatorsTabs />} />

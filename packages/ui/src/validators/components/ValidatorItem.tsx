@@ -23,7 +23,7 @@ import { useSelectedValidators } from '../context/SelectedValidatorsContext'
 // import { ValidatorActionsDropdown } from './ValidatorActionsDropdown'
 import { ValidatorInfo } from './ValidatorInfo'
 
-interface ValidatorItemProps {
+export interface ValidatorItemProps {
   validator: ValidatorWithDetails
   onClick?: () => void
   isNominated?: boolean

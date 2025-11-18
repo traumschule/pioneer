@@ -54,6 +54,7 @@ export const useLocalStorage = <T>(key?: string) => {
     (setStateAction: T | ((prevState?: T) => T)) => {
       const value = isFunction(setStateAction) ? setStateAction(getItem(key)) : setStateAction
       setItem(key, value)
+      setState(value)
       document.dispatchEvent(new CustomEvent(`storage_event_${key}`, {}))
     },
     [key]

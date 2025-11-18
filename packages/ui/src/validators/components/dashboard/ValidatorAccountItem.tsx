@@ -16,7 +16,7 @@ import { AccountStakingRewards } from '@/validators/hooks/useAllAccountsStakingR
 
 import { ValidatorOverViewClaimButton } from '../styles'
 
-interface AccountItemDataProps {
+export interface AccountItemDataProps {
   account: Account
   stakingRewards?: AccountStakingRewards
 }

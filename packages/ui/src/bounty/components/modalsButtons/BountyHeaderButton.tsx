@@ -36,7 +36,7 @@ export const BountyHeaderButton = <T extends ModalNames>({
       modal,
       data: modalData,
     } as AnyModalCall)
-  }, [validMemberIds, active])
+  }, [validMemberIds, active, modal, modalData, showModal])
 
   return (
     <TransactionButton style="secondary" size="large" onClick={withdrawWorkEntryModal}>

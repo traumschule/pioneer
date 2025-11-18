@@ -8,22 +8,23 @@ import { Skeleton } from '@/common/components/Skeleton'
 import { TextMedium, TextSmall, TokenValue } from '@/common/components/typography'
 import { BorderRad, Colors, Sizes, Transitions } from '@/common/constants'
 import { Block } from '@/common/types'
-import { useNominatorInfo } from '@/validators/hooks/useNominatorInfo'
-interface AccountItemDataProps extends BlockTimeLayoutProps {
-  account: Account
-  block?: Block
-  dateLabel?: string
-  lessInfo?: boolean
-}
-
+import { NominatorInfo, useNominatorInfo } from '@/validators/hooks/useNominatorInfo'
 interface BlockTimeLayoutProps {
   layout?: 'row' | 'column' | 'reverse' | 'reverse-start'
   position?: 'start' | 'end'
 }
 
-export const NominatorAccountItem = ({ account }: AccountItemDataProps) => {
+export interface AccountItemDataProps extends BlockTimeLayoutProps {
+  account: Account
+  block?: Block
+  dateLabel?: string
+  lessInfo?: boolean
+  nominatorInfo?: NominatorInfo
+}
+
+export const NominatorAccountItem = ({ account, nominatorInfo: providedInfo }: AccountItemDataProps) => {
   const address = account.address
-  const nominatorInfo = useNominatorInfo(address)
+  const nominatorInfo = providedInfo ?? useNominatorInfo(address)
 
   const [isDropped, setDropped] = useState(false)
 

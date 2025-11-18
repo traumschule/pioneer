@@ -1,23 +1,30 @@
 import React, { ReactNode, useMemo, useState } from 'react'
+import { combineLatest, map, of, switchMap } from 'rxjs'
 import styled from 'styled-components'
 
 import { AccountItemLoading } from '@/accounts/components/AccountItem/AccountItemLoading'
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { useMyBalances } from '@/accounts/hooks/useMyBalances'
+import { Account } from '@/accounts/types'
 import { filterAccounts } from '@/accounts/model/filterAccounts'
-import { SortKey, setOrder, sortAccounts } from '@/accounts/model/sortAccounts'
+import { sortAccounts, SortKey, setOrder } from '@/accounts/model/sortAccounts'
 import { ButtonPrimary } from '@/common/components/buttons'
 import { EmptyPagePlaceholder } from '@/common/components/EmptyPagePlaceholder/EmptyPagePlaceholder'
 import { List, ListItem } from '@/common/components/List'
 import { ContentWithTabs } from '@/common/components/page/PageContent'
 import { HeaderText, SortIconDown, SortIconUp } from '@/common/components/SortedListHeaders'
 import { Colors } from '@/common/constants'
+import { useApi } from '@/api/hooks/useApi'
+import { BN_ZERO } from '@/common/constants'
+import { useObservable } from '@/common/hooks/useObservable'
 import { useModal } from '@/common/hooks/useModal'
+import { NominatorInfo } from '@/validators/hooks/useNominatorInfo'
 
 import { NominatorAccountItem } from './dashboard/NominatorItem'
 
 export function Nominators() {
   const { allAccounts, hasAccounts, isLoading, wallet } = useMyAccounts()
+  const { api } = useApi()
   const { showModal } = useModal()
   const [isDisplayAll] = useState(true)
   const balances = useMyBalances()
@@ -31,6 +38,70 @@ export function Nominators() {
     () => sortAccounts(visibleAccounts, balances, sortBy, isDescending),
     [visibleAccounts, balances, sortBy, isDescending]
   )
+
+  // Fetch all nominator info at once to avoid hooks in loop
+  const nominatorInfos = useObservable(() => {
+    if (!api || !sortedAccounts.length) return of(new Map<string, NominatorInfo>())
+
+    return combineLatest(
+      sortedAccounts.map((account) =>
+        combineLatest([
+          api.query.staking.nominators(account.address),
+          api.query.staking.bonded(account.address),
+        ]).pipe(
+          switchMap(([nominations, bonded]) => {
+            const isNominating = !nominations.isEmpty
+            const targets = isNominating ? nominations.unwrap().targets.map((target) => target.toString()) : []
+            
+            if (bonded.isNone) {
+              return of({
+                address: account.address,
+                info: { isNominating, targets, activeStake: BN_ZERO, totalStake: BN_ZERO },
+              })
+            }
+            const controller = bonded.unwrap().toString()
+            return api.query.staking.ledger(controller).pipe(
+              map((ledger) => {
+                if (ledger.isNone) {
+                  return {
+                    address: account.address,
+                    info: { isNominating, targets, activeStake: BN_ZERO, totalStake: BN_ZERO },
+                  }
+                }
+                const ledgerData = ledger.unwrap()
+                return {
+                  address: account.address,
+                  info: {
+                    isNominating,
+                    targets,
+                    activeStake: ledgerData.active.toBn(),
+                    totalStake: ledgerData.total.toBn(),
+                  },
+                }
+              })
+            )
+          })
+        )
+      )
+    ).pipe(
+      map((results) => {
+        const map = new Map<string, NominatorInfo>()
+        results.forEach(({ address, info }) => {
+          map.set(address, info)
+        })
+        return map
+      })
+    )
+  }, [api?.isConnected, JSON.stringify(sortedAccounts.map((a) => a.address))])
+
+  // Filter accounts that have zero stake
+  const accountsToRender = useMemo(() => {
+    if (!nominatorInfos) return []
+    return sortedAccounts.filter((account) => {
+      const info = nominatorInfos.get(account.address)
+      return info && (info.isNominating || !info.totalStake.isZero() || !info.activeStake.isZero())
+    })
+  }, [sortedAccounts, nominatorInfos])
 
   const getOnSort = (key: SortKey) => () => setOrder(key, sortBy, setSortBy, isDescending, setDescending)
 
@@ -64,14 +135,14 @@ export function Nominators() {
       <AccountsWrap>
         <ListHeaders>
           <Header sortKey="name">NOMINATOR</Header>
-          <Header sortKey="total">NOMINATOR ON</Header>
+          <Header sortKey="total">NOMINATING</Header>
           <Header sortKey="total">TOTAL STAKED</Header>
         </ListHeaders>
         <List>
           {!isLoading ? (
-            sortedAccounts.map((account) => (
+            accountsToRender.map((account) => (
               <ListItem key={account.address}>
-                <NominatorAccountItem account={account} />
+                <NominatorAccountItem account={account} nominatorInfo={nominatorInfos?.get(account.address)} />
               </ListItem>
             ))
           ) : (

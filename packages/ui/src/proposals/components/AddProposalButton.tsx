@@ -18,7 +18,7 @@ export const AddProposalButton = () => {
 
   const tooltipProps = useMemo(() => {
     if (!api?.isConnected) return { tooltipText: 'Connecting to api' }
-    if (!api?.isConnected || availableSlots > 0) {
+    if (availableSlots > 0) {
       return {
         tooltipText: 'Use the proposal engine to suggest a change to the Council.',
         tooltipLinkText: 'Learn about the Proposal System',
@@ -40,7 +40,7 @@ export const AddProposalButton = () => {
       size="medium"
       tooltip={tooltipProps}
       onClick={addProposalModal}
-      disabled={!availableSlots}
+      disabled={!(availableSlots > 0)}
     >
       <PlusIcon />
       Add new proposal

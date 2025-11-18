@@ -83,7 +83,7 @@ export const NorminatorDashboardItem = ({
     return position.nominations.length
   }, [position.role, validatorDetails?.staking?.nominators, position.nominations])
 
-  const assignmentsLabel = position.role === 'validator' ? 'nominators' : 'targets'
+  const assignmentsLabel = position.role === 'validator' ? 'nominators' : 'nominations'
 
   const unlockingTotal = useMemo(
     () => position.unlocking.reduce((sum, chunk) => sum.add(chunk.value), new BN(0)),

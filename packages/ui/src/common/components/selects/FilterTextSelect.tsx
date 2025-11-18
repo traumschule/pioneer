@@ -13,5 +13,5 @@ export const FilterTextSelect = (props: DefaultSelectProps<string, string | null
     search && setSearch('')
   }, [props.value])
 
-  return <SimpleSelect {...props} options={options} onSearch={setSearch} emptyOption="All" />
+  return <SimpleSelect {...props} options={options} onSearch={setSearch} />
 }

@@ -1,14 +1,14 @@
 import React, { ReactNode, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
-import { AccountItemLoading } from '@/accounts/components/AccountItem/AccountItemLoading'
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { useMyBalances } from '@/accounts/hooks/useMyBalances'
 import { filterAccounts } from '@/accounts/model/filterAccounts'
 import { ButtonPrimary } from '@/common/components/buttons'
-import MultilineChart, { MultilineChartData } from '@/common/components/charts/MultiLineChart'
+import MultilineChart from '@/common/components/charts/MultiLineChart'
 import { EmptyPagePlaceholder } from '@/common/components/EmptyPagePlaceholder/EmptyPagePlaceholder'
 import { List, ListItem } from '@/common/components/List'
+import { Loading } from '@/common/components/Loading'
 import { ContentWithTabs } from '@/common/components/page/PageContent'
 import { FilterTextSelect } from '@/common/components/selects'
 import { HeaderText, SortIconDown, SortIconUp } from '@/common/components/SortedListHeaders'
@@ -42,7 +42,6 @@ export function Overview() {
     [JSON.stringify(allAccounts), isDisplayAll, hasAccounts]
   )
 
-  // Fetch staking rewards for all accounts to enable sorting
   const stakingRewardsMap = useAllAccountsStakingRewards(visibleAccounts)
 
   const sortedAccounts = useMemo(
@@ -106,13 +105,6 @@ export function Overview() {
     { label: 'Last Day', value: 'day' },
   ]
 
-  const defaultChartData: MultilineChartData = {
-    labels: [],
-    barData: [],
-    rewardData: [],
-    stakeData: [],
-  }
-
   return (
     <ContentWithTabs>
       <ChartWarp>
@@ -129,7 +121,7 @@ export function Overview() {
             />
           </FilterBox>
         </ChartHeader>
-        <MultilineChart data={chartData || defaultChartData} />
+        <MultilineChart data={chartData} />
       </ChartWarp>
       {shouldShowAccountsSection && (
         <AccountsSection>
@@ -148,7 +140,9 @@ export function Overview() {
                   </ListItem>
                 ))
               ) : (
-                <AccountItemLoading count={5} />
+                <LoadingRow>
+                  <Loading text="Loading rewards..." withoutMargin />
+                </LoadingRow>
               )}
             </List>
           </AccountsWrap>
@@ -218,6 +212,13 @@ const AccountsWrap = styled.div`
   ${ListItem} {
     background: ${Colors.Black[50]};
   }
+`
+
+const LoadingRow = styled.div`
+  padding: 24px 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 `
 
 const ListHeaders = styled.div`
