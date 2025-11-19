@@ -1,6 +1,6 @@
 import BN from 'bn.js'
 import React, { useMemo } from 'react'
-import { combineLatest, map, of, switchMap } from 'rxjs'
+import { combineLatest, filter, first, map, of, switchMap, catchError } from 'rxjs'
 
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { Account } from '@/accounts/types'
@@ -16,6 +16,7 @@ import { useModal } from '@/common/hooks/useModal'
 import { useObservable } from '@/common/hooks/useObservable'
 import { useSignAndSendTransaction } from '@/common/hooks/useSignAndSendTransaction'
 import { transactionMachine } from '@/common/model/machines'
+import { useMyMemberships } from '@/memberships/hooks/useMyMemberships'
 
 import { ClaimStakingRewardsModalCall } from '.'
 
@@ -26,10 +27,16 @@ interface ValidatorClaimableRewards {
   totalClaimable: BN
 }
 
+interface EraInfo {
+  currentEra: number
+  oldestEra: number
+}
+
 export const ClaimStakingRewardsModal = () => {
   const { hideModal } = useModal<ClaimStakingRewardsModalCall>()
   const { api } = useApi()
   const { allAccounts } = useMyAccounts()
+  const { active: activeMembership } = useMyMemberships()
   const [state, , service] = useMachine(transactionMachine)
 
   const validatorsRewards = useObservable<ValidatorClaimableRewards[] | undefined>(() => {
@@ -37,49 +44,68 @@ export const ClaimStakingRewardsModal = () => {
 
     const addresses = allAccounts.map((account) => account.address)
 
+    // Ensure API is ready before making queries
+    const isReady$ =
+      'isReady' in api && typeof api.isReady === 'function'
+        ? (api.isReady() as any).pipe(
+            filter((ready: any) => Boolean(ready)),
+            first()
+          )
+        : api.rpc.chain.getBlockHash(0).pipe(
+            first(),
+            map(() => true)
+          )
+
     const eraInfo$ = api.query.staking.activeEra().pipe(
       map((activeEra) => {
         if (activeEra.isNone) return undefined
         const currentEra = activeEra.unwrap().index.toNumber()
         return { currentEra, oldestEra: Math.max(0, currentEra - ERA_DEPTH) }
-      })
+      }),
+      catchError(() => of(undefined))
     )
 
-    return eraInfo$.pipe(
+    return isReady$.pipe(
+      switchMap(() => eraInfo$),
       switchMap((eraInfo) => {
-        if (!eraInfo) return of([])
+        if (!eraInfo || typeof eraInfo !== 'object' || !('currentEra' in eraInfo) || !('oldestEra' in eraInfo)) {
+          return of([])
+        }
 
-        const { currentEra, oldestEra } = eraInfo
+        const { currentEra, oldestEra } = eraInfo as EraInfo
 
-        const accountRewards$ = addresses.map((address) =>
-          api.query.staking.bonded(address).pipe(
-            switchMap((bonded) => {
-              if (bonded.isNone) return of(null)
+        // Fetch eras rewards and points once for all accounts to avoid registry issues
+        const erasRewards$ = api.derive.staking.erasRewards().pipe(catchError(() => of([])))
+        const erasPoints$ = api.derive.staking.erasPoints().pipe(catchError(() => of([])))
 
-              const controller = bonded.unwrap().toString()
-              return api.query.staking.ledger(controller).pipe(
-                switchMap((ledger) => {
-                  if (ledger.isNone) return of(null)
+        return combineLatest([erasRewards$, erasPoints$]).pipe(
+          switchMap(([erasRewards, erasPoints]) => {
+            const rewardsByEra = new Map(erasRewards.map((reward: any) => [reward.era.toNumber(), reward]))
+            const pointsByEra = new Map(erasPoints.map((points: any) => [points.era.toNumber(), points]))
 
-                  const ledgerData = ledger.unwrap()
-                  const claimedRewards = ledgerData.claimedRewards.map((era) => era.toNumber())
+            const accountRewards$ = addresses.map((address) =>
+              api.query.staking.bonded(address).pipe(
+                catchError(() => of(null)),
+                switchMap((bonded) => {
+                  if (!bonded || bonded.isNone) return of(null)
 
-                  const unclaimedEras: number[] = []
-                  for (let era = oldestEra; era < currentEra; era++) {
-                    if (!claimedRewards.includes(era)) {
-                      unclaimedEras.push(era)
-                    }
-                  }
+                  const controller = bonded.unwrap().toString()
+                  return api.query.staking.ledger(controller).pipe(
+                    catchError(() => of(null)),
+                    map((ledger) => {
+                      if (!ledger || ledger.isNone) return null
 
-                  if (unclaimedEras.length === 0) return of(null)
+                      const ledgerData = ledger.unwrap()
+                      const claimedRewards = ledgerData.claimedRewards.map((era) => era.toNumber())
 
-                  const erasRewards$ = api.derive.staking.erasRewards()
-                  const erasPoints$ = api.derive.staking.erasPoints()
+                      const unclaimedEras: number[] = []
+                      for (let era = oldestEra; era < currentEra; era++) {
+                        if (!claimedRewards.includes(era)) {
+                          unclaimedEras.push(era)
+                        }
+                      }
 
-                  return combineLatest([erasRewards$, erasPoints$]).pipe(
-                    map(([erasRewards, erasPoints]) => {
-                      const rewardsByEra = new Map(erasRewards.map((reward: any) => [reward.era.toNumber(), reward]))
-                      const pointsByEra = new Map(erasPoints.map((points: any) => [points.era.toNumber(), points]))
+                      if (unclaimedEras.length === 0) return null
 
                       let totalClaimable = BN_ZERO
 
@@ -110,14 +136,15 @@ export const ClaimStakingRewardsModal = () => {
                   )
                 })
               )
-            })
-          )
-        )
+            )
 
-        return combineLatest(accountRewards$).pipe(
-          map((rewards: (ValidatorClaimableRewards | null)[]) =>
-            rewards.filter((r): r is ValidatorClaimableRewards => r !== null && !r.totalClaimable.isZero())
-          )
+            return combineLatest(accountRewards$).pipe(
+              map((rewards: (ValidatorClaimableRewards | null)[]) =>
+                rewards.filter((r): r is ValidatorClaimableRewards => r !== null && !r.totalClaimable.isZero())
+              ),
+              catchError(() => of([]))
+            )
+          })
         )
       })
     )
@@ -129,7 +156,8 @@ export const ClaimStakingRewardsModal = () => {
     const totalClaimable = validatorsRewards.reduce((sum, v) => sum.add(v.totalClaimable), BN_ZERO)
     const totalEras = validatorsRewards.reduce((sum, v) => sum + v.unclaimedEras.length, 0)
 
-    const batchedEras = Math.min(totalEras, 40)
+    // Reduce batch size to prevent block limit exhaustion
+    const batchedEras = Math.min(totalEras, 20)
 
     return {
       totalClaimable,
@@ -146,7 +174,8 @@ export const ClaimStakingRewardsModal = () => {
       validator.unclaimedEras.map((era: number) => api.tx.staking.payoutStakers(validator.address, era))
     )
 
-    const limitedCalls = payoutCalls.slice(0, 40)
+    // Reduce batch size to prevent block limit exhaustion
+    const limitedCalls = payoutCalls.slice(0, 20)
 
     return limitedCalls.length === 0
       ? undefined
@@ -155,7 +184,13 @@ export const ClaimStakingRewardsModal = () => {
       : api.tx.utility.batchAll(limitedCalls)
   }, [api, validatorsRewards])
 
-  const signerAccount = allAccounts[0]
+  // Use active membership controller account, or fallback to first account
+  const signerAccount = useMemo(() => {
+    if (activeMembership?.controllerAccount) {
+      return allAccounts.find((acc) => acc.address === activeMembership.controllerAccount) || allAccounts[0]
+    }
+    return allAccounts[0]
+  }, [activeMembership, allAccounts])
 
   const { isReady, sign, paymentInfo, canAfford } = useSignAndSendTransaction({
     transaction,
@@ -163,6 +198,20 @@ export const ClaimStakingRewardsModal = () => {
     service: service as any,
     skipQueryNode: true,
   })
+
+  if (state.matches('canceled')) {
+    return (
+      <Modal onClose={hideModal} modalSize="s" modalHeight="s">
+        <ModalHeader title="Transaction Canceled" onClick={hideModal} />
+        <ModalBody>
+          <TextMedium>
+            The transaction was canceled. Please try again if you want to claim your staking rewards.
+          </TextMedium>
+        </ModalBody>
+        <ModalTransactionFooter next={{ onClick: hideModal, label: 'Close' }} />
+      </Modal>
+    )
+  }
 
   if (state.matches('error')) {
     return (

@@ -1,5 +1,5 @@
 import BN from 'bn.js'
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import styled from 'styled-components'
 
@@ -13,7 +13,6 @@ import { TableListItemAsLinkHover } from '@/common/components/List'
 import { TextMedium, TextSmall, TokenValue } from '@/common/components/typography'
 import { BorderRad, Colors, Sizes, Transitions, BN_ZERO, ZIndex } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
-import { useOutsideClick } from '@/common/hooks/useOutsideClick'
 import { shortenAddress } from '@/common/model/formatters'
 import { MyStashPosition } from '@/validators/hooks/useMyStashPositions'
 import { ManageStashAction, ManageStashActionModalCall } from '@/validators/modals/ManageStashActionModal'
@@ -41,11 +40,25 @@ export const NorminatorDashboardItem = ({
   const [isMenuOpen, setMenuOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const menuDropdownRef = useRef<HTMLDivElement | null>(null)
 
-  useOutsideClick(menuRef, isMenuOpen, () => {
-    setMenuOpen(false)
-    setMenuPosition(null)
-  })
+  useEffect(() => {
+    if (!isMenuOpen) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node
+      const clickedOutsideMenu = menuRef.current && !menuRef.current.contains(target)
+      const clickedOutsideDropdown = menuDropdownRef.current && !menuDropdownRef.current.contains(target)
+
+      if (clickedOutsideMenu && clickedOutsideDropdown) {
+        setMenuOpen(false)
+        setMenuPosition(null)
+      }
+    }
+
+    window.addEventListener('mousedown', handleClickOutside)
+    return () => window.removeEventListener('mousedown', handleClickOutside)
+  }, [isMenuOpen])
 
   const accountInfo = useMemo<Account>(() => {
     if (account) {
@@ -217,19 +230,17 @@ export const NorminatorDashboardItem = ({
                 event.stopPropagation()
                 if (!isMenuOpen && menuRef.current) {
                   const rect = menuRef.current.getBoundingClientRect()
-                  const menuHeight = 200 // Approximate menu height
+                  const menuHeight = 200
                   const spaceBelow = window.innerHeight - rect.bottom
                   const spaceAbove = rect.top
-                  
+
                   let top: number
                   if (spaceBelow < menuHeight && spaceAbove > menuHeight) {
-                    // Position above if not enough space below
                     top = rect.top - menuHeight - 8
                   } else {
-                    // Position below
                     top = rect.bottom + 8
                   }
-                  
+
                   setMenuPosition({
                     top,
                     right: window.innerWidth - rect.right,
@@ -247,13 +258,18 @@ export const NorminatorDashboardItem = ({
             {isMenuOpen &&
               menuPosition &&
               createPortal(
-                <MenuDropdown role="menu" style={{ top: `${menuPosition.top}px`, right: `${menuPosition.right}px` }}>
+                <MenuDropdown
+                  ref={menuDropdownRef}
+                  role="menu"
+                  style={{ top: `${menuPosition.top}px`, right: `${menuPosition.right}px` }}
+                >
                   {menuItems.map(({ label, disabled, onClick }) => (
                     <MenuItem
                       key={label}
                       disabled={disabled}
-                      onClick={() => {
+                      onClick={(event) => {
                         if (disabled) return
+                        event.stopPropagation()
                         setMenuOpen(false)
                         setMenuPosition(null)
                         onClick()

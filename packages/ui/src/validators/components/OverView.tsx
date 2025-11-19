@@ -12,6 +12,7 @@ import { Loading } from '@/common/components/Loading'
 import { ContentWithTabs } from '@/common/components/page/PageContent'
 import { FilterTextSelect } from '@/common/components/selects'
 import { HeaderText, SortIconDown, SortIconUp } from '@/common/components/SortedListHeaders'
+import { TextMedium } from '@/common/components/typography'
 import { BN_ZERO, Colors } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
 import { useAllAccountsStakingRewards } from '@/validators/hooks/useAllAccountsStakingRewards'
@@ -51,14 +52,14 @@ export function Overview() {
 
   const accountsWithClaimable = useMemo(() => {
     if (!stakingRewardsMap) {
-      return sortedAccounts
+      return []
     }
 
     return sortedAccounts.filter((account) => stakingRewardsMap.get(account.address)?.hasClaimable)
   }, [sortedAccounts, stakingRewardsMap])
 
-  const accountsToRender = stakingRewardsMap ? accountsWithClaimable : sortedAccounts
-  const shouldShowAccountsSection = isLoading || accountsToRender.length > 0
+  const accountsToRender = stakingRewardsMap ? accountsWithClaimable : []
+  const shouldShowAccountsSection = isLoading || accountsToRender.length > 0 || stakingRewardsMap === undefined
 
   const chartData = useMyStakingChartData(chartTimeRange)
 
@@ -133,7 +134,11 @@ export function Overview() {
               <Header sortKey="claimable">CLAIMABLE</Header>
             </ListHeaders>
             <List>
-              {!isLoading ? (
+              {isLoading || stakingRewardsMap === undefined ? (
+                <LoadingRow>
+                  <Loading text="Loading rewards..." withoutMargin />
+                </LoadingRow>
+              ) : accountsToRender.length > 0 ? (
                 accountsToRender.map((account) => (
                   <ListItem key={account.address}>
                     <ValidatorAccountItem account={account} stakingRewards={stakingRewardsMap?.get(account.address)} />
@@ -141,7 +146,7 @@ export function Overview() {
                 ))
               ) : (
                 <LoadingRow>
-                  <Loading text="Loading rewards..." withoutMargin />
+                  <TextMedium lighter>No claimable rewards found.</TextMedium>
                 </LoadingRow>
               )}
             </List>

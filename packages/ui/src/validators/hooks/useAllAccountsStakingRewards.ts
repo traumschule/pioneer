@@ -1,5 +1,5 @@
 import BN from 'bn.js'
-import { combineLatest, map, of, switchMap } from 'rxjs'
+import { combineLatest, filter, first, map, of, switchMap, catchError } from 'rxjs'
 
 import { Account } from '@/accounts/types'
 import { useApi } from '@/api/hooks/useApi'
@@ -13,6 +13,11 @@ export interface AccountStakingRewards {
   hasClaimable: boolean
 }
 
+interface EraInfo {
+  currentEra: number
+  oldestEra: number
+}
+
 export const useAllAccountsStakingRewards = (accounts: Account[]): Map<string, AccountStakingRewards> | undefined => {
   const { api } = useApi()
 
@@ -21,35 +26,49 @@ export const useAllAccountsStakingRewards = (accounts: Account[]): Map<string, A
 
     const addresses = accounts.map((account) => account.address)
 
+    // Ensure API is ready before making queries
+    const isReady$ =
+      'isReady' in api && typeof api.isReady === 'function'
+        ? (api.isReady() as any).pipe(
+            filter((ready: any) => Boolean(ready)),
+            first()
+          )
+        : api.rpc.chain.getBlockHash(0).pipe(
+            first(),
+            map(() => true)
+          )
+
     const eraInfo$ = api.query.staking.activeEra().pipe(
       map((activeEra) => {
         if (activeEra.isNone) return undefined
         const currentEra = activeEra.unwrap().index.toNumber()
         return { currentEra, oldestEra: Math.max(0, currentEra - ERA_DEPTH) }
-      })
+      }),
+      catchError(() => of(undefined))
     )
 
-    return eraInfo$.pipe(
+    return isReady$.pipe(
+      switchMap(() => eraInfo$),
       switchMap((eraInfo) => {
-        if (!eraInfo) return of(new Map())
+        if (!eraInfo || typeof eraInfo !== 'object' || !('currentEra' in eraInfo) || !('oldestEra' in eraInfo)) {
+          return of(new Map<string, AccountStakingRewards>())
+        }
 
-        // Fetch staking data for all accounts in parallel
-        const accountRewards$ = addresses.map((address) =>
-          api.query.staking.bonded(address).pipe(
-            switchMap((bonded) => {
-              if (bonded.isNone) {
-                return of({
-                  address,
-                  totalEarned: BN_ZERO,
-                  claimable: BN_ZERO,
-                  hasClaimable: false,
-                })
-              }
+        const { currentEra, oldestEra } = eraInfo as EraInfo
 
-              const controller = bonded.unwrap().toString()
-              return api.query.staking.ledger(controller).pipe(
-                switchMap((ledger) => {
-                  if (ledger.isNone) {
+        const erasRewards$ = api.derive.staking.erasRewards().pipe(catchError(() => of([])))
+        const erasPoints$ = api.derive.staking.erasPoints().pipe(catchError(() => of([])))
+
+        return combineLatest([erasRewards$, erasPoints$]).pipe(
+          switchMap(([erasRewards, erasPoints]) => {
+            const rewardsByEra = new Map(erasRewards.map((reward: any) => [reward.era.toNumber(), reward]))
+            const pointsByEra = new Map(erasPoints.map((points: any) => [points.era.toNumber(), points]))
+
+            const accountRewards$ = addresses.map((address) =>
+              api.query.staking.bonded(address).pipe(
+                catchError(() => of(null)),
+                switchMap((bonded) => {
+                  if (!bonded || bonded.isNone) {
                     return of({
                       address,
                       totalEarned: BN_ZERO,
@@ -58,30 +77,33 @@ export const useAllAccountsStakingRewards = (accounts: Account[]): Map<string, A
                     })
                   }
 
-                  const ledgerData = ledger.unwrap()
-                  const claimedRewards = ledgerData.claimedRewards.map((era) => era.toNumber())
+                  const controller = bonded.unwrap().toString()
+                  return api.query.staking.ledger(controller).pipe(
+                    catchError(() => of(null)),
+                    map((ledger) => {
+                      if (!ledger || ledger.isNone) {
+                        return {
+                          address,
+                          totalEarned: BN_ZERO,
+                          claimable: BN_ZERO,
+                          hasClaimable: false,
+                        }
+                      }
 
-                  // Find unclaimed eras
-                  const unclaimedEras: number[] = []
-                  for (let era = eraInfo.oldestEra; era < eraInfo.currentEra; era++) {
-                    if (!claimedRewards.includes(era)) {
-                      unclaimedEras.push(era)
-                    }
-                  }
+                      const ledgerData = ledger.unwrap()
+                      const claimedRewards = ledgerData.claimedRewards.map((era) => era.toNumber())
 
-                  // Get reward points
-                  const erasRewards$ = api.derive.staking.erasRewards()
-                  const erasPoints$ = api.derive.staking.erasPoints()
-
-                  return combineLatest([erasRewards$, erasPoints$]).pipe(
-                    map(([erasRewards, erasPoints]) => {
-                      const rewardsByEra = new Map(erasRewards.map((reward: any) => [reward.era.toNumber(), reward]))
-                      const pointsByEra = new Map(erasPoints.map((points: any) => [points.era.toNumber(), points]))
+                      const unclaimedEras: number[] = []
+                      for (let era = oldestEra; era < currentEra; era++) {
+                        if (!claimedRewards.includes(era)) {
+                          unclaimedEras.push(era)
+                        }
+                      }
 
                       let totalEarned = BN_ZERO
                       let claimable = BN_ZERO
 
-                      for (let era = eraInfo.oldestEra; era < eraInfo.currentEra; era++) {
+                      for (let era = oldestEra; era < currentEra; era++) {
                         const reward = rewardsByEra.get(era)
                         const points = pointsByEra.get(era)
 
@@ -113,17 +135,18 @@ export const useAllAccountsStakingRewards = (accounts: Account[]): Map<string, A
                   )
                 })
               )
-            })
-          )
-        )
+            )
 
-        return combineLatest(accountRewards$).pipe(
-          map((rewards) => {
-            const rewardsMap = new Map<string, AccountStakingRewards>()
-            rewards.forEach((reward) => {
-              rewardsMap.set(reward.address, reward)
-            })
-            return rewardsMap
+            return combineLatest(accountRewards$).pipe(
+              map((rewards) => {
+                const rewardsMap = new Map<string, AccountStakingRewards>()
+                rewards.forEach((reward) => {
+                  rewardsMap.set(reward.address, reward)
+                })
+                return rewardsMap
+              }),
+              catchError(() => of(new Map()))
+            )
           })
         )
       })

@@ -20,7 +20,7 @@ export const Bags = () => {
     <PageLayout
       header={
         <RowGapBlock gap={24}>
-          <PageHeader title="Validators" tabs={<ValidatorsTabs />} />
+          <PageHeader title="My Bags" tabs={<ValidatorsTabs />} />
           <Statistics>
             <NumericValueStat
               title="TOTAL BAGS"
@@ -33,6 +33,7 @@ export const Bags = () => {
           </Statistics>
         </RowGapBlock>
       }
+      fullWidth
       main={
         <BagsListWrap>
           <ListHeaders>
