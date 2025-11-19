@@ -49,11 +49,11 @@ const UnbondModalInner = ({ validatorAddress }: Props) => {
   // Real SDK utility functions
   const joyToBalance = (joy: string): bigint => {
     const joyAmount = parseFloat(joy)
-    return BigInt(Math.floor(joyAmount * 1_000_000_000_000))
+    return BigInt(Math.floor(joyAmount * 10_000_000_000))
   }
 
   const balanceToJoy = (balance: bigint): string => {
-    const joyAmount = Number(balance) / 1_000_000_000_000
+    const joyAmount = Number(balance) / 10_000_000_000
     return joyAmount.toFixed(4)
   }
 
@@ -173,7 +173,7 @@ const UnbondModalInner = ({ validatorAddress }: Props) => {
           )}
 
           <TextSmall>
-            <strong>Important:</strong> Unbonded tokens will be locked for 28 days before you can withdraw them. During
+            <strong>Important:</strong> Unbonded tokens will be locked for 28 days before you can withdraw them. During{' '}
             this period, they will not earn rewards.
           </TextSmall>
         </RowGapBlock>

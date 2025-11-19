@@ -1,37 +1,195 @@
-import React from 'react'
+import BN from 'bn.js'
+import React, { useMemo, useState } from 'react'
 
-import { ButtonPrimary } from '@/common/components/buttons'
-import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/common/components/Modal'
-import { TextMedium, TokenValue } from '@/common/components/typography'
-import { useModal } from '@/common/hooks/useModal'
+import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { encodeAddress } from '@/accounts/model/encodeAddress'
+import { useApi } from '@/api/hooks/useApi'
+import { ButtonSecondary } from '@/common/components/buttons'
+import { FailureModal } from '@/common/components/FailureModal'
+import { InputComponent, InputText } from '@/common/components/forms'
+import { Modal, ModalBody, ModalHeader, ModalTransactionFooter } from '@/common/components/Modal'
+import { RowGapBlock } from '@/common/components/page/PageContent'
+import { SuccessModal } from '@/common/components/SuccessModal'
+import { TextMedium, TextSmall, TokenValue } from '@/common/components/typography'
+import { useMachine } from '@/common/hooks/useMachine'
+import { useModal } from '@/common/hooks/useModal'
+import { useSignAndSendTransaction } from '@/common/hooks/useSignAndSendTransaction'
+import { transactionMachine } from '@/common/model/machines'
+import { useMyMemberships } from '@/memberships/hooks/useMyMemberships'
+import { useStakingTransactions } from '@/validators/hooks/useStakingSDK'
 
 import { UnbondStakingModalCall } from '.'
 
 export const UnbondStakingModal = () => {
-  const { hideModal, modalData } = useModal<UnbondStakingModalCall>()
+  const { modalData } = useModal<UnbondStakingModalCall>()
 
   if (!modalData) {
     return null
   }
 
+  return <UnbondStakingModalInner stash={modalData.stash} controller={modalData.controller} bonded={modalData.bonded} />
+}
+
+interface UnbondStakingModalInnerProps {
+  stash: string
+  controller?: string
+  bonded: BN
+}
+
+const UnbondStakingModalInner = ({ stash, controller, bonded }: UnbondStakingModalInnerProps) => {
+  const { hideModal } = useModal<UnbondStakingModalCall>()
+  const { api } = useApi()
+  const { allAccounts } = useMyAccounts()
+  const { active: activeMembership } = useMyMemberships()
+  const { unbond } = useStakingTransactions()
+  const [state, , service] = useMachine(transactionMachine)
+
+  const [amount, setAmount] = useState('')
+
+  const joyToBalance = (joy: string): bigint => {
+    const joyAmount = parseFloat(joy)
+    return BigInt(Math.floor(joyAmount * 10_000_000_000))
+  }
+
+  const balanceToJoy = (balance: bigint): string => {
+    const joyAmount = Number(balance) / 10_000_000_000
+    return joyAmount.toFixed(4)
+  }
+
+  const bondedBigInt = BigInt(bonded.toString())
+
+  const transaction = useMemo(() => {
+    if (!api || !amount || parseFloat(amount) <= 0) return undefined
+    const unbondAmount = joyToBalance(amount)
+    if (unbondAmount > bondedBigInt) return undefined
+    return unbond(unbondAmount)
+  }, [api, amount, unbond, bondedBigInt])
+
+  const signerAccount = useMemo(() => {
+    if (activeMembership?.controllerAccount) {
+      return allAccounts.find((acc) => acc.address === activeMembership.controllerAccount) || allAccounts[0]
+    }
+    if (controller) {
+      return allAccounts.find((acc) => acc.address === controller) || allAccounts[0]
+    }
+    return allAccounts.find((acc) => acc.address === stash) || allAccounts[0]
+  }, [activeMembership, allAccounts, controller, stash])
+
+  const { isReady, sign, paymentInfo, canAfford } = useSignAndSendTransaction({
+    transaction,
+    signer: signerAccount?.address ?? '',
+    service: service as any,
+    skipQueryNode: true,
+  })
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    if (value === '' || (!isNaN(parseFloat(value)) && parseFloat(value) >= 0)) {
+      setAmount(value)
+    }
+  }
+
+  const handleMaxAmount = () => {
+    setAmount(balanceToJoy(bondedBigInt))
+  }
+
+  if (state.matches('canceled')) {
+    return (
+      <Modal onClose={hideModal} modalSize="s" modalHeight="s">
+        <ModalHeader title="Transaction Canceled" onClick={hideModal} />
+        <ModalBody>
+          <TextMedium>The transaction was canceled. Please try again if you want to unbond your stake.</TextMedium>
+        </ModalBody>
+        <ModalTransactionFooter next={{ onClick: hideModal, label: 'Close' }} />
+      </Modal>
+    )
+  }
+
+  if (state.matches('error')) {
+    return (
+      <FailureModal onClose={hideModal} events={state.context.events}>
+        There was a problem with unbonding your stake
+      </FailureModal>
+    )
+  }
+
+  if (state.matches('success')) {
+    return (
+      <SuccessModal
+        onClose={hideModal}
+        text={`You have successfully unbonded ${amount} JOY tokens. They will be available for withdrawal after the 28-day unbonding period.`}
+      />
+    )
+  }
+
+  const signDisabled =
+    !isReady ||
+    !canAfford ||
+    !amount ||
+    parseFloat(amount) <= 0 ||
+    (parseFloat(amount) > 0 && joyToBalance(amount) > bondedBigInt)
+
   return (
-    <Modal modalSize="s" modalHeight="s" onClose={hideModal}>
-      <ModalHeader title="Unbond stake" onClick={hideModal} />
+    <Modal modalSize="m" modalHeight="m" onClose={hideModal}>
+      <ModalHeader title="Unbond Stake" onClick={hideModal} />
       <ModalBody>
-        <TextMedium>
-          Unbonding directly from Pioneer is not yet supported. To unbond the bonded amount of{' '}
-          <TokenValue value={modalData.bonded} /> for stash <strong>{encodeAddress(modalData.stash)}</strong>, please use
-          polkadot.js apps.
-        </TextMedium>
+        <RowGapBlock gap={16}>
+          <TextMedium>
+            Unbond your tokens from stash <strong>{encodeAddress(stash)}</strong>. Unbonded tokens will be locked for 28
+            days before you can withdraw them.
+          </TextMedium>
+
+          <TextSmall>
+            <strong>Bonded Balance:</strong> <TokenValue value={bonded} />
+          </TextSmall>
+
+          <InputComponent label="Amount to Unbond (JOY)" required inputSize="m" id="unbond-amount">
+            <InputText
+              id="unbond-amount"
+              placeholder="Enter amount to unbond"
+              value={amount}
+              onChange={handleAmountChange}
+              type="number"
+              step="0.1"
+              min="0"
+              max={balanceToJoy(bondedBigInt)}
+            />
+          </InputComponent>
+
+          <ButtonSecondary size="small" onClick={handleMaxAmount}>
+            Use Max Amount
+          </ButtonSecondary>
+
+          {amount && parseFloat(amount) > 0 && joyToBalance(amount) > bondedBigInt && (
+            <TextSmall style={{ color: 'red' }}>
+              <strong>Error:</strong> Amount exceeds bonded balance
+            </TextSmall>
+          )}
+
+          {!canAfford && paymentInfo?.partialFee && (
+            <TextSmall style={{ color: 'red' }}>
+              <strong>Error:</strong> Insufficient funds to cover transaction costs
+            </TextSmall>
+          )}
+
+          <TextSmall>
+            <strong>Important:</strong> Unbonded tokens will be locked for 28 days before you can withdraw them. During{' '}
+            this period, they will not earn rewards.
+          </TextSmall>
+        </RowGapBlock>
       </ModalBody>
-      <ModalFooter>
-        <ButtonPrimary size="medium" onClick={hideModal}>
-          Close
-        </ButtonPrimary>
-      </ModalFooter>
+      <ModalTransactionFooter
+        transactionFee={paymentInfo?.partialFee?.toBn()}
+        next={{
+          disabled: signDisabled,
+          label: 'Unbond Stake',
+          onClick: sign,
+        }}
+      >
+        <ButtonSecondary size="medium" onClick={hideModal}>
+          Cancel
+        </ButtonSecondary>
+      </ModalTransactionFooter>
     </Modal>
   )
 }
-
-

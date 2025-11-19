@@ -12,17 +12,23 @@ export const useStakingSDK = () => {
     // Mock staking manager for now - will be replaced with real SDK
     return {
       // Mock transaction methods - will be replaced with real SDK methods
+      // Note: Based on SDK implementation, these methods accept bigint directly
       bond: (controller: string, amount: bigint, payee: string) =>
-        api.tx.staking.bond(controller, amount.toString(), payee),
-      unbond: (amount: bigint) => api.tx.staking.unbond(amount.toString()),
+        api.tx.staking.bond(controller, amount, payee),
+      bondExtra: (amount: bigint) => api.tx.staking.bondExtra(amount),
+      unbond: (amount: bigint) => api.tx.staking.unbond(amount),
+      rebond: (amount: bigint) => api.tx.staking.rebond(amount),
       nominate: (targets: string[]) => api.tx.staking.nominate(targets),
       validate: () => ({ signAndSend: () => Promise.resolve() }),
       payoutStakers: () => ({ signAndSend: () => Promise.resolve() }),
       rebag: () => ({ signAndSend: () => Promise.resolve() }),
-      rebond: () => ({ signAndSend: () => Promise.resolve() }),
+      setController: (controller: string) => api.tx.staking.setController(controller),
+      setPayee: (payee: string) => api.tx.staking.setPayee(payee),
+      withdrawUnbonded: (slashingSpans: number) => api.tx.staking.withdrawUnbonded(slashingSpans),
+      chill: () => api.tx.staking.chill(),
       bondAndNominate: (controller: string, amount: bigint, targets: string[], payee: string) =>
         api.tx.utility.batch([
-          api.tx.staking.bond(controller, amount.toString(), payee),
+          api.tx.staking.bond(controller, amount, payee),
           api.tx.staking.nominate(targets),
         ]),
 

@@ -33,7 +33,7 @@ export const BondModal = () => {
     }
   }, [])
 
-  const joyToBalance = (joy: string): bigint => BigInt(parseFloat(joy) * 1_000_000_000_000)
+  const joyToBalance = (joy: string): bigint => BigInt(parseFloat(joy) * 10_000_000_000)
 
   const handleBond = async () => {
     if (!api || !isConnected) {
@@ -143,7 +143,7 @@ export const BondModal = () => {
           )}
 
           <TextSmall>
-            <strong>Note:</strong> This transaction will bond your tokens to the staking system. Bonded tokens are
+            <strong>Note:</strong> This transaction will bond your tokens to the staking system. Bonded tokens are{' '}
             locked and cannot be transferred until unbonded.
           </TextSmall>
         </RowGapBlock>

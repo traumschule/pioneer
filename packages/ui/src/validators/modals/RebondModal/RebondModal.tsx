@@ -49,11 +49,11 @@ const RebondModalInner = ({ validatorAddress }: Props) => {
   // Real SDK utility functions
   const joyToBalance = (joy: string): bigint => {
     const joyAmount = parseFloat(joy)
-    return BigInt(Math.floor(joyAmount * 1_000_000_000_000))
+    return BigInt(Math.floor(joyAmount * 10_000_000_000))
   }
 
   const balanceToJoy = (balance: bigint): string => {
-    const joyAmount = Number(balance) / 1_000_000_000_000
+    const joyAmount = Number(balance) / 10_000_000_000
     return joyAmount.toFixed(4)
   }
 
@@ -175,7 +175,7 @@ const RebondModalInner = ({ validatorAddress }: Props) => {
           )}
 
           <TextSmall>
-            <strong>Note:</strong> Rebonding converts your unbonding tokens back to active staking. This will restart
+            <strong>Note:</strong> Rebonding converts your unbonding tokens back to active staking. This will restart{' '}
             the unbonding period if you decide to unbond again.
           </TextSmall>
         </RowGapBlock>
