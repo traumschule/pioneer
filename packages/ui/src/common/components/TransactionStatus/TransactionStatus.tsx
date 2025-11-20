@@ -24,8 +24,10 @@ export const TransactionStatus = () => {
     }
 
     if (status === 'canceled') {
-      setVisible(false)
-      return
+      setVisible(true)
+      // Auto-hide canceled notification after a timeout
+      const timeout = setTimeout(() => setVisible(false), HIDE_STATUS_TIMEOUT)
+      return () => clearTimeout(timeout)
     }
 
     setVisible(true)

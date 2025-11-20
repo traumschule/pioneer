@@ -44,7 +44,6 @@ export const ClaimStakingRewardsModal = () => {
 
     const addresses = allAccounts.map((account) => account.address)
 
-    // Ensure API is ready before making queries
     const isReady$ =
       'isReady' in api && typeof api.isReady === 'function'
         ? (api.isReady() as any).pipe(
@@ -74,7 +73,6 @@ export const ClaimStakingRewardsModal = () => {
 
         const { currentEra, oldestEra } = eraInfo as EraInfo
 
-        // Fetch eras rewards and points once for all accounts to avoid registry issues
         const erasRewards$ = api.derive.staking.erasRewards().pipe(catchError(() => of([])))
         const erasPoints$ = api.derive.staking.erasPoints().pipe(catchError(() => of([])))
 
@@ -156,8 +154,7 @@ export const ClaimStakingRewardsModal = () => {
     const totalClaimable = validatorsRewards.reduce((sum, v) => sum.add(v.totalClaimable), BN_ZERO)
     const totalEras = validatorsRewards.reduce((sum, v) => sum + v.unclaimedEras.length, 0)
 
-    // Reduce batch size to prevent block limit exhaustion
-    const batchedEras = Math.min(totalEras, 20)
+    const batchedEras = Math.min(totalEras, 5)
 
     return {
       totalClaimable,
@@ -174,8 +171,7 @@ export const ClaimStakingRewardsModal = () => {
       validator.unclaimedEras.map((era: number) => api.tx.staking.payoutStakers(validator.address, era))
     )
 
-    // Reduce batch size to prevent block limit exhaustion
-    const limitedCalls = payoutCalls.slice(0, 20)
+    const limitedCalls = payoutCalls.slice(0, 5)
 
     return limitedCalls.length === 0
       ? undefined
@@ -184,7 +180,6 @@ export const ClaimStakingRewardsModal = () => {
       : api.tx.utility.batchAll(limitedCalls)
   }, [api, validatorsRewards])
 
-  // Use active membership controller account, or fallback to first account
   const signerAccount = useMemo(() => {
     if (activeMembership?.controllerAccount) {
       return allAccounts.find((acc) => acc.address === activeMembership.controllerAccount) || allAccounts[0]
@@ -214,11 +209,34 @@ export const ClaimStakingRewardsModal = () => {
   }
 
   if (state.matches('error')) {
+    const errorMessage = state.context.events?.find(
+      (event: any) =>
+        event?.event?.data?.toString().includes('Invalid Transaction') ||
+        event?.event?.data?.toString().includes('exhaust the block limits') ||
+        event?.event?.method === 'ExtrinsicFailed'
+    )
+
+    const isBlockLimitError =
+      errorMessage?.event?.data?.toString().includes('exhaust the block limits') ||
+      errorMessage?.event?.data?.toString().includes('Invalid Transaction')
+
     return (
       <FailureModal onClose={hideModal} events={state.context.events}>
-        There was a problem with claiming staking rewards
+        {isBlockLimitError
+          ? 'The transaction would exceed block limits. Please try claiming fewer eras at once.'
+          : 'There was a problem with claiming staking rewards'}
       </FailureModal>
     )
+  }
+
+  if (
+    state.matches('signing') ||
+    state.matches('signWithExtension') ||
+    state.matches('pending') ||
+    state.matches('processing') ||
+    state.matches('finalizing')
+  ) {
+    return null
   }
 
   if (state.matches('success')) {

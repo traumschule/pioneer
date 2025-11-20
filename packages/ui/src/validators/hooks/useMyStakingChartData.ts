@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { combineLatest, concat, filter, first, map, of, startWith, switchMap, catchError, Observable } from 'rxjs'
 
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
@@ -39,11 +40,12 @@ const createEmptyChartData = (timeRange: ChartTimeRange): StakingChartData => {
 export const useMyStakingChartData = (timeRange: ChartTimeRange = 'month'): StakingChartData => {
   const { api } = useApi()
   const { allAccounts } = useMyAccounts()
+  const previousDataRef = useRef<StakingChartData | null>(null)
 
   const chartData = useObservable<StakingChartData>((): Observable<StakingChartData> => {
     const emptyData = createEmptyChartData(timeRange)
     if (!api || !allAccounts.length) {
-      return of(emptyData).pipe(startWith(emptyData))
+      return of(previousDataRef.current || emptyData).pipe(startWith(previousDataRef.current || emptyData))
     }
 
     const addresses = allAccounts.map((account) => account.address)
@@ -69,159 +71,214 @@ export const useMyStakingChartData = (timeRange: ChartTimeRange = 'month'): Stak
       catchError(() => of(undefined))
     )
 
-    return concat(
-      of(emptyData),
-      isReady$.pipe(
-        switchMap(() => activeEra$),
-        switchMap((currentEra): Observable<StakingChartData> => {
-          if (!currentEra || typeof currentEra !== 'number') {
-            return of(emptyData)
-          }
+    const dataObservable = isReady$.pipe(
+      switchMap(() => activeEra$),
+      switchMap((currentEra): Observable<StakingChartData> => {
+        if (!currentEra || typeof currentEra !== 'number') {
+          const fallback = previousDataRef.current || emptyData
+          return of(fallback)
+        }
 
-          const startEra = Math.max(0, currentEra - erasToFetch)
-          const eras = Array.from({ length: Math.min(erasToFetch, currentEra) }, (_, i) => startEra + i)
+        const startEra = Math.max(0, currentEra - erasToFetch)
+        const eras = Array.from({ length: Math.min(erasToFetch, currentEra) }, (_, i) => startEra + i)
 
-          const erasRewards$ = api.derive.staking.erasRewards().pipe(catchError(() => of([])))
-          const erasPoints$ = api.derive.staking.erasPoints().pipe(catchError(() => of([])))
+        const erasRewards$ = api.derive.staking.erasRewards().pipe(catchError(() => of([])))
+        const erasPoints$ = api.derive.staking.erasPoints().pipe(catchError(() => of([])))
 
-          return combineLatest([erasRewards$, erasPoints$]).pipe(
-            switchMap(([erasRewards, erasPoints]) => {
-              const rewardsByEra = new Map(erasRewards.map((reward) => [reward.era.toNumber(), reward]))
-              const pointsByEra = new Map(erasPoints.map((points) => [points.era.toNumber(), points]))
+        return combineLatest([erasRewards$, erasPoints$]).pipe(
+          switchMap(([erasRewards, erasPoints]: [any[], any[]]) => {
+            const rewardsByEra = new Map(erasRewards.map((reward: any) => [reward.era.toNumber(), reward]))
+            const pointsByEra = new Map(erasPoints.map((points: any) => [points.era.toNumber(), points]))
 
-              const eraStakes$ = combineLatest(
-                eras.map((era) =>
-                  combineLatest(
-                    addresses.map((address) =>
-                      api.query.staking.erasStakers(era, address).pipe(
-                        catchError(() => of(null)),
-                        map((exposure) => ({
-                          era,
-                          address,
-                          total: !exposure || exposure.isEmpty ? BN_ZERO : exposure.total.toBn(),
-                        }))
-                      )
+            const eraStakes$ = combineLatest(
+              eras.map((era) =>
+                combineLatest(
+                  addresses.map((address) =>
+                    api.query.staking.erasStakers(era, address).pipe(
+                      catchError(() => of(null)),
+                      map((exposure: any) => ({
+                        era,
+                        address,
+                        total: !exposure || exposure.isEmpty ? BN_ZERO : exposure.total.toBn(),
+                      }))
                     )
-                  ).pipe(
-                    map((stakes) => ({
-                      era,
-                      totalStake: stakes.reduce((sum, s) => sum.add(s.total), BN_ZERO),
-                    }))
                   )
+                ).pipe(
+                  map((stakes: any[]) => ({
+                    era,
+                    totalStake: stakes.reduce((sum, s) => sum.add(s.total), BN_ZERO),
+                  }))
                 )
-              ).pipe(catchError(() => of([])))
-
-              const eraSlashes$ = combineLatest(
-                eras.map((era) =>
-                  combineLatest(
-                    addresses.map((address) =>
-                      api.query.staking.validatorSlashInEra(era, address).pipe(
-                        catchError(() => of(null)),
-                        map((slash) => ({
-                          era,
-                          slashed: !slash || slash.isNone ? BN_ZERO : slash.unwrap()[1].toBn(),
-                        }))
-                      )
-                    )
-                  ).pipe(
-                    map((slashes) => ({
-                      era,
-                      totalSlashed: slashes.reduce((sum, s) => sum.add(s.slashed), BN_ZERO),
-                    }))
-                  )
-                )
-              ).pipe(catchError(() => of([])))
-
-              return combineLatest([eraStakes$, eraSlashes$]).pipe(
-                map(([eraStakes, eraSlashes]) => {
-                  const stakesByEra = new Map(eraStakes.map((stake) => [stake.era, stake.totalStake]))
-                  const slashesByEra = new Map(eraSlashes.map((slash) => [slash.era, slash.totalSlashed]))
-
-                  const groupedData = new Map<string, { rewards: number[]; stakes: number[]; slashes: number[] }>()
-
-                  eras.forEach((era) => {
-                    let groupKey: string
-                    if (timeRange === 'day') {
-                      const hoursSinceStart = (era - startEra) * 6
-                      groupKey = `${hoursSinceStart}h`
-                    } else if (timeRange === 'week') {
-                      const daysSinceStart = Math.floor((era - startEra) / ERAS_PER_DAY)
-                      groupKey = `Day ${daysSinceStart + 1}`
-                    } else {
-                      const weeksSinceStart = Math.floor((era - startEra) / (ERAS_PER_DAY * 7))
-                      groupKey = `Week ${weeksSinceStart + 1}`
-                    }
-
-                    const reward = rewardsByEra.get(era)
-                    const points = pointsByEra.get(era)
-                    let eraReward = BN_ZERO
-
-                    if (reward && points && !reward.eraReward.isZero()) {
-                      const totalPoints = points.eraPoints.toNumber()
-                      if (totalPoints > 0) {
-                        addresses.forEach((address) => {
-                          const validatorPoints = points.validators[address]
-                          if (validatorPoints) {
-                            const validatorPointsNum = validatorPoints.toNumber()
-                            const share = reward.eraReward.muln(validatorPointsNum).divn(totalPoints)
-                            eraReward = eraReward.add(share)
-                          }
-                        })
-                      }
-                    }
-
-                    const rewardInJoy = Number(formatTokenValue(eraReward) || '0')
-                    const stakeInJoy = Number(formatTokenValue(stakesByEra.get(era) || BN_ZERO) || '0')
-                    const slashedInJoy = Number(formatTokenValue(slashesByEra.get(era) || BN_ZERO) || '0')
-
-                    if (!groupedData.has(groupKey)) {
-                      groupedData.set(groupKey, { rewards: [], stakes: [], slashes: [] })
-                    }
-                    const group = groupedData.get(groupKey)!
-                    group.rewards.push(rewardInJoy)
-                    group.stakes.push(stakeInJoy)
-                    group.slashes.push(slashedInJoy)
-                  })
-
-                  const labels: string[] = []
-                  const rewardData: number[] = []
-                  const stakeData: number[] = []
-                  const barData: number[] = []
-
-                  const sortedGroups = Array.from(groupedData.entries()).sort(([a], [b]) => {
-                    const numA = parseInt(a.replace(/\D/g, '')) || 0
-                    const numB = parseInt(b.replace(/\D/g, '')) || 0
-                    return numA - numB
-                  })
-
-                  sortedGroups.forEach(([label, data]) => {
-                    labels.push(label)
-                    rewardData.push(data.rewards.reduce((sum, val) => sum + val, 0))
-                    barData.push(data.slashes.reduce((sum, val) => sum + val, 0))
-                    const avgStake =
-                      data.stakes.length > 0 ? data.stakes.reduce((sum, val) => sum + val, 0) / data.stakes.length : 0
-                    stakeData.push(avgStake)
-                  })
-
-                  if (labels.length === 0) {
-                    return emptyData
-                  }
-
-                  return {
-                    labels,
-                    rewardData,
-                    stakeData,
-                    barData,
-                  }
-                }),
-                catchError(() => of(emptyData))
               )
-            })
-          )
-        })
-      )
-    ).pipe(map((data): StakingChartData => data as StakingChartData))
+            ).pipe(catchError(() => of([])))
+
+            const eraSlashes$ = combineLatest(
+              eras.map((era) =>
+                combineLatest(
+                  addresses.map((address) =>
+                    api.query.staking.validatorSlashInEra(era, address).pipe(
+                      catchError(() => of(null)),
+                      map((slash: any) => ({
+                        era,
+                        slashed: !slash || slash.isNone ? BN_ZERO : slash.unwrap()[1].toBn(),
+                      }))
+                    )
+                  )
+                ).pipe(
+                  map((slashes: any[]) => ({
+                    era,
+                    totalSlashed: slashes.reduce((sum, s) => sum.add(s.slashed), BN_ZERO),
+                  }))
+                )
+              )
+            ).pipe(catchError(() => of([])))
+
+            return combineLatest([eraStakes$, eraSlashes$]).pipe(
+              map(([eraStakes, eraSlashes]: [any[], any[]]) => {
+                const stakesByEra = new Map(eraStakes.map((stake: any) => [stake.era, stake.totalStake]))
+                const slashesByEra = new Map(eraSlashes.map((slash: any) => [slash.era, slash.totalSlashed]))
+
+                const groupedData = new Map<string, { rewards: number[]; stakes: number[]; slashes: number[] }>()
+
+                eras.forEach((era) => {
+                  let groupKey: string
+                  if (timeRange === 'day') {
+                    const hoursSinceStart = (era - startEra) * 6
+                    groupKey = `${hoursSinceStart}h`
+                  } else if (timeRange === 'week') {
+                    const daysSinceStart = Math.floor((era - startEra) / ERAS_PER_DAY)
+                    groupKey = `Day ${daysSinceStart + 1}`
+                  } else {
+                    const weeksSinceStart = Math.floor((era - startEra) / (ERAS_PER_DAY * 7))
+                    groupKey = `Week ${weeksSinceStart + 1}`
+                  }
+
+                  const reward = rewardsByEra.get(era)
+                  const points = pointsByEra.get(era)
+                  let eraReward = BN_ZERO
+
+                  if (reward && points && reward.eraReward && !reward.eraReward.isZero()) {
+                    const totalPoints = points.eraPoints.toNumber()
+                    if (totalPoints > 0) {
+                      addresses.forEach((address) => {
+                        const validatorPoints = points.validators?.[address]
+                        if (validatorPoints) {
+                          const validatorPointsNum = validatorPoints.toNumber()
+                          const share = reward.eraReward.muln(validatorPointsNum).divn(totalPoints)
+                          eraReward = eraReward.add(share)
+                        }
+                      })
+                    }
+                  }
+
+                  const rewardInJoy = Number(formatTokenValue(eraReward) || '0')
+                  const stakeInJoy = Number(formatTokenValue(stakesByEra.get(era) || BN_ZERO) || '0')
+                  const slashedInJoy = Number(formatTokenValue(slashesByEra.get(era) || BN_ZERO) || '0')
+
+                  if (!groupedData.has(groupKey)) {
+                    groupedData.set(groupKey, { rewards: [], stakes: [], slashes: [] })
+                  }
+                  const group = groupedData.get(groupKey)!
+                  group.rewards.push(rewardInJoy)
+                  group.stakes.push(stakeInJoy)
+                  group.slashes.push(slashedInJoy)
+                })
+
+                const labels: string[] = []
+                const rewardData: number[] = []
+                const stakeData: number[] = []
+                const barData: number[] = []
+
+                const sortedGroups = Array.from(groupedData.entries()).sort(([a], [b]) => {
+                  const numA = parseInt(a.replace(/\D/g, '')) || 0
+                  const numB = parseInt(b.replace(/\D/g, '')) || 0
+                  return numA - numB
+                })
+
+                sortedGroups.forEach(([label, data]) => {
+                  labels.push(label)
+                  rewardData.push(data.rewards.reduce((sum, val) => sum + val, 0))
+                  barData.push(data.slashes.reduce((sum, val) => sum + val, 0))
+                  const avgStake =
+                    data.stakes.length > 0 ? data.stakes.reduce((sum, val) => sum + val, 0) / data.stakes.length : 0
+                  stakeData.push(avgStake)
+                })
+
+                if (labels.length === 0) {
+                  // Return previous data if available when current data is empty
+                  return previousDataRef.current || emptyData
+                }
+
+                const chartDataResult: StakingChartData = {
+                  labels,
+                  rewardData,
+                  stakeData,
+                  barData,
+                }
+
+                // Store valid data for future use
+                previousDataRef.current = chartDataResult
+                return chartDataResult
+              }),
+              catchError(() => {
+                const fallback = previousDataRef.current || emptyData
+                return of(fallback)
+              })
+            )
+          }),
+          catchError(() => {
+            const fallback = previousDataRef.current || emptyData
+            return of(fallback)
+          })
+        )
+      }),
+      catchError(() => {
+        const fallback = previousDataRef.current || emptyData
+        return of(fallback)
+      })
+    )
+
+    return concat(of(previousDataRef.current || emptyData), dataObservable).pipe(
+      map((data: any): StakingChartData => {
+        if (
+          !data ||
+          !data.labels ||
+          !data.rewardData ||
+          !data.stakeData ||
+          !data.barData ||
+          !Array.isArray(data.labels) ||
+          !Array.isArray(data.rewardData) ||
+          !Array.isArray(data.stakeData) ||
+          !Array.isArray(data.barData)
+        ) {
+          return previousDataRef.current || createEmptyChartData(timeRange)
+        }
+        const chartData: StakingChartData = {
+          labels: data.labels,
+          rewardData: data.rewardData,
+          stakeData: data.stakeData,
+          barData: data.barData,
+        }
+        // Store valid data for future use
+        const hasValidData =
+          chartData.labels.length > 0 &&
+          (chartData.rewardData.some((val: number) => val > 0) || chartData.stakeData.some((val: number) => val > 0))
+        if (hasValidData) {
+          previousDataRef.current = chartData
+        }
+        return chartData
+      })
+    )
   }, [api, api?.isConnected, JSON.stringify(allAccounts.map((a) => a.address)), timeRange])
 
-  return chartData || createEmptyChartData(timeRange)
+  const hasValidData =
+    chartData &&
+    chartData.labels.length > 0 &&
+    (chartData.rewardData.some((val: number) => val > 0) || chartData.stakeData.some((val: number) => val > 0))
+
+  if (hasValidData) {
+    return chartData
+  }
+
+  return previousDataRef.current || createEmptyChartData(timeRange)
 }

@@ -1,15 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 
 import { SelectAccount } from '@/accounts/components/SelectAccount'
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { useApi } from '@/api/hooks/useApi'
-import { ButtonPrimary, ButtonSecondary } from '@/common/components/buttons'
+import { ButtonSecondary } from '@/common/components/buttons'
+import { FailureModal } from '@/common/components/FailureModal'
 import { InputComponent, InputText } from '@/common/components/forms'
-import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/common/components/Modal'
+import { Modal, ModalBody, ModalHeader, ModalTransactionFooter } from '@/common/components/Modal'
 import { RowGapBlock } from '@/common/components/page/PageContent'
 import { SuccessModal } from '@/common/components/SuccessModal'
 import { TextMedium, TextSmall } from '@/common/components/typography'
+import { useMachine } from '@/common/hooks/useMachine'
 import { useModal } from '@/common/hooks/useModal'
+import { useSignAndSendTransaction } from '@/common/hooks/useSignAndSendTransaction'
+import { transactionMachine } from '@/common/model/machines'
+import { useMyMemberships } from '@/memberships/hooks/useMyMemberships'
 import { useStakingTransactions } from '@/validators/hooks/useStakingSDK'
 import { BondModalCall } from '@/validators/modals/BondModal/types'
 
@@ -17,66 +22,62 @@ export const BondModal = () => {
   const { hideModal } = useModal<BondModalCall>()
   const { api } = useApi()
   const { allAccounts } = useMyAccounts()
-  const { bond, isConnected } = useStakingTransactions()
+  const { active: activeMembership } = useMyMemberships()
+  const { bond } = useStakingTransactions()
+  const [state, , service] = useMachine(transactionMachine)
 
   const [amount, setAmount] = useState('')
+  const [stash, setStash] = useState('')
   const [controller, setController] = useState('')
   const [payee, setPayee] = useState('Stash')
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-  const isMountedRef = useRef(true)
 
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false
-    }
-  }, [])
-
-  const joyToBalance = (joy: string): bigint => BigInt(parseFloat(joy) * 10_000_000_000)
-
-  const handleBond = async () => {
-    if (!api || !isConnected) {
-      setError('API not connected')
-
-      return
-    }
-
-    if (!amount || parseFloat(amount) <= 0) {
-      setError('Please enter a valid amount')
-      return
-    }
-
-    if (!controller) {
-      setError('Please select a controller account')
-      return
-    }
-
-    if (!allAccounts || allAccounts.length === 0) {
-      setError('No accounts available')
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const bondTx = bond(controller, joyToBalance(amount), payee)
-      await bondTx.signAndSend(allAccounts[0])
-
-      if (isMountedRef.current) {
-        setSuccess(true)
-      }
-    } catch (err) {
-      if (isMountedRef.current) {
-        setError(err instanceof Error ? err.message : 'Bonding failed')
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setIsLoading(false)
-      }
-    }
+  const joyToBalance = (joy: string): bigint => {
+    const joyAmount = parseFloat(joy)
+    return BigInt(Math.floor(joyAmount * 10_000_000_000))
   }
+
+  // Initialize stash with first account or active membership account
+  useEffect(() => {
+    if (!stash && allAccounts.length > 0) {
+      if (activeMembership?.boundAccounts && activeMembership.boundAccounts.length > 0) {
+        // Prefer accounts bound to membership
+        const boundAccount = allAccounts.find((acc) =>
+          activeMembership.boundAccounts?.includes(acc.address)
+        )
+        if (boundAccount) {
+          setStash(boundAccount.address)
+          return
+        }
+      }
+      // Fallback to first account
+      setStash(allAccounts[0].address)
+    }
+  }, [stash, allAccounts, activeMembership])
+
+  // When stash changes and controller is empty, set controller to stash initially
+  useEffect(() => {
+    if (stash && !controller) {
+      setController(stash)
+    }
+  }, [stash, controller])
+
+  const transaction = useMemo(() => {
+    if (!api || !amount || parseFloat(amount) <= 0 || !controller || !stash) return undefined
+    return bond(controller, joyToBalance(amount), payee)
+  }, [api, amount, controller, payee, stash, bond])
+
+  // The signer should be the stash account (the account that holds the funds being bonded)
+  const signerAccount = useMemo(() => {
+    if (!stash) return allAccounts[0]
+    return allAccounts.find((acc) => acc.address === stash) || allAccounts[0]
+  }, [stash, allAccounts])
+
+  const { isReady, sign, paymentInfo, canAfford } = useSignAndSendTransaction({
+    transaction,
+    signer: signerAccount?.address ?? '',
+    service: service as any,
+    skipQueryNode: true,
+  })
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
@@ -85,7 +86,27 @@ export const BondModal = () => {
     }
   }
 
-  if (success) {
+  if (state.matches('canceled')) {
+    return (
+      <Modal onClose={hideModal} modalSize="m" modalHeight="m">
+        <ModalHeader title="Transaction Canceled" onClick={hideModal} />
+        <ModalBody>
+          <TextMedium>The transaction was canceled. Please try again if you want to bond tokens.</TextMedium>
+        </ModalBody>
+        <ModalTransactionFooter next={{ onClick: hideModal, label: 'Close' }} />
+      </Modal>
+    )
+  }
+
+  if (state.matches('error')) {
+    return (
+      <FailureModal onClose={hideModal} events={state.context.events}>
+        There was a problem with bonding your tokens
+      </FailureModal>
+    )
+  }
+
+  if (state.matches('success')) {
     return (
       <SuccessModal
         onClose={hideModal}
@@ -94,12 +115,23 @@ export const BondModal = () => {
     )
   }
 
+  const signDisabled =
+    !isReady || !canAfford || !amount || parseFloat(amount) <= 0 || !controller || !stash
+
   return (
-    <Modal modalSize="m" onClose={hideModal}>
+    <Modal modalSize="m" modalHeight="m" onClose={hideModal}>
       <ModalHeader title="Bond Tokens" onClick={hideModal} />
       <ModalBody>
         <RowGapBlock gap={16}>
           <TextMedium>Bond your tokens for staking. Bonded tokens are locked and can earn rewards.</TextMedium>
+
+          <InputComponent label="Stash Account" required inputSize="l" id="stash-account">
+            <SelectAccount
+              onChange={(account) => setStash(account?.address || '')}
+              selected={allAccounts.find((acc) => acc.address === stash)}
+              placeholder="Select stash account"
+            />
+          </InputComponent>
 
           <InputComponent label="Amount to Bond (JOY)" required inputSize="m" id="bond-amount">
             <InputText
@@ -121,6 +153,11 @@ export const BondModal = () => {
             />
           </InputComponent>
 
+          <TextSmall>
+            <strong>Note:</strong> The controller account manages nominations and other staking operations. It can be the
+            same as the stash account.
+          </TextSmall>
+
           <InputComponent label="Payee" inputSize="m" id="payee">
             <InputText
               id="payee"
@@ -136,9 +173,9 @@ export const BondModal = () => {
             </datalist>
           </InputComponent>
 
-          {error && (
+          {!canAfford && paymentInfo?.partialFee && (
             <TextSmall style={{ color: 'red' }}>
-              <strong>Error:</strong> {error}
+              <strong>Error:</strong> Insufficient funds to cover transaction costs
             </TextSmall>
           )}
 
@@ -148,14 +185,18 @@ export const BondModal = () => {
           </TextSmall>
         </RowGapBlock>
       </ModalBody>
-      <ModalFooter>
+      <ModalTransactionFooter
+        transactionFee={paymentInfo?.partialFee?.toBn()}
+        next={{
+          disabled: signDisabled,
+          label: 'Bond Tokens',
+          onClick: sign,
+        }}
+      >
         <ButtonSecondary size="medium" onClick={hideModal}>
           Cancel
         </ButtonSecondary>
-        <ButtonPrimary size="medium" onClick={handleBond} disabled={isLoading || !amount || !controller}>
-          {isLoading ? 'Bonding...' : 'Bond Tokens'}
-        </ButtonPrimary>
-      </ModalFooter>
+      </ModalTransactionFooter>
     </Modal>
   )
 }

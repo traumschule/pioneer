@@ -3,10 +3,13 @@ import React, { useMemo, useState } from 'react'
 import styled from 'styled-components'
 
 import { Account } from '@/accounts/types'
+import { ButtonPrimary } from '@/common/components/buttons'
 import { List, ListItem } from '@/common/components/List'
 import { Tabs } from '@/common/components/Tabs'
 import { Colors } from '@/common/constants'
+import { useModal } from '@/common/hooks/useModal'
 import { MyStakingRole, MyStashPosition } from '@/validators/hooks/useMyStashPositions'
+import { BondModalCall } from '@/validators/modals/BondModal'
 import { ValidatorWithDetails } from '@/validators/types/Validator'
 
 import { NorminatorDashboardItem } from './NominatorItems'
@@ -42,9 +45,14 @@ export const NominatorPositionsTable = ({
   showFilter = true,
   tabsSize = 'xs',
 }: Props) => {
+  const { showModal } = useModal()
   const positionsWithStake = useMemo(() => positions.filter((position) => hasNonZeroStake(position)), [positions])
 
   const [filter, setFilter] = useState<FilterKey>('all')
+
+  const handleBond = () => {
+    showModal<BondModalCall>({ modal: 'Bond' })
+  }
 
   const counts = useMemo(() => {
     return positionsWithStake.reduce(
@@ -63,10 +71,16 @@ export const NominatorPositionsTable = ({
   }, [positionsWithStake])
 
   const filteredPositions = useMemo(() => {
-    if (filter === 'all') {
-      return positionsWithStake
+    let filtered = positionsWithStake
+    if (filter !== 'all') {
+      filtered = filtered.filter((position) => position.role === filter)
     }
-    return positionsWithStake.filter((position) => position.role === filter)
+    // Sort validators to the top
+    return [...filtered].sort((a, b) => {
+      if (a.role === 'validator' && b.role !== 'validator') return -1
+      if (a.role !== 'validator' && b.role === 'validator') return 1
+      return 0
+    })
   }, [positionsWithStake, filter])
 
   const filterTabs = useMemo(
@@ -104,19 +118,26 @@ export const NominatorPositionsTable = ({
   return (
     <Wrapper className={className}>
       {showFilter && (
-        <TabsContainer>
-          <Tabs tabs={filterTabs} tabsSize={tabsSize} />
-        </TabsContainer>
+        <FilterRow>
+          <TabsContainer>
+            <Tabs tabs={filterTabs} tabsSize={tabsSize} />
+          </TabsContainer>
+          <BondButtonContainer>
+            <ButtonPrimary size="small" onClick={handleBond}>
+              Bond
+            </ButtonPrimary>
+          </BondButtonContainer>
+        </FilterRow>
       )}
       <ListHeaders>
-        <ListHeader>Account</ListHeader>
+        <ListHeader>Stash</ListHeader>
         <ListHeader>Role</ListHeader>
-        <ListHeader>Active Stake</ListHeader>
-        <ListHeader>Total Stake</ListHeader>
-        <ListHeader>Unlocking</ListHeader>
+        <ListHeader>Controller</ListHeader>
+        <ListHeader>Rewards</ListHeader>
+        <ListHeader>Stake</ListHeader>
         <ListHeader>Nominations</ListHeader>
         <ListHeader>Claimable Reward</ListHeader>
-        <ListHeader>Primary Action</ListHeader>
+        <ListHeader />
         <ListHeader />
         <ListHeader />
       </ListHeaders>
@@ -149,8 +170,21 @@ const Wrapper = styled.div`
   width: 100%;
 `
 
-const TabsContainer = styled.div`
+const FilterRow = styled.div`
   grid-area: validatorstablenav;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+`
+
+const TabsContainer = styled.div`
+  flex: 1;
+`
+
+const BondButtonContainer = styled.div`
+  display: flex;
+  align-items: center;
 `
 
 const StyledList = styled(List)`
@@ -161,7 +195,7 @@ const ListHeaders = styled.div`
   display: grid;
   grid-area: validatorstableheaders;
   grid-template-rows: 1fr;
-  grid-template-columns: 280px 100px 120px 120px 120px 140px 140px 140px 40px 40px;
+  grid-template-columns: 280px 100px 140px 120px 180px 140px 140px 40px 40px 40px;
   justify-content: space-between;
   justify-items: center;
   width: 100%;

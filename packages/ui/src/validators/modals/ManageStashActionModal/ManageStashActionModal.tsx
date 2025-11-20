@@ -1,5 +1,6 @@
 import BN from 'bn.js'
 import React, { useEffect, useMemo, useState } from 'react'
+import { filter, first, map, of } from 'rxjs'
 
 import { SelectAccount } from '@/accounts/components/SelectAccount'
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
@@ -14,6 +15,7 @@ import { SuccessModal } from '@/common/components/SuccessModal'
 import { TextMedium, TextSmall } from '@/common/components/typography'
 import { useMachine } from '@/common/hooks/useMachine'
 import { useModal } from '@/common/hooks/useModal'
+import { useObservable } from '@/common/hooks/useObservable'
 import { useSignAndSendTransaction } from '@/common/hooks/useSignAndSendTransaction'
 import { transactionMachine } from '@/common/model/machines'
 import { useMyMemberships } from '@/memberships/hooks/useMyMemberships'
@@ -60,6 +62,34 @@ const ManageStashActionModalInner = ({ modalData }: ManageStashActionModalInnerP
 
   const title = TITLES[modalData.action]
 
+  const currentEra = useObservable(() => {
+    if (!api) return of(undefined)
+    return api.query.staking.activeEra().pipe(
+      map((activeEra) => {
+        if (activeEra.isNone) return undefined
+        return activeEra.unwrap().index.toNumber()
+      }),
+      filter((era): era is number => era !== undefined),
+      first()
+    )
+  }, [api?.isConnected])
+
+  const UNBONDING_PERIOD_ERAS = 112
+  const withdrawableAmount = useMemo(() => {
+    if (!currentEra || !modalData.unlocking || modalData.unlocking.length === 0 || modalData.action !== 'withdraw') {
+      return new BN(0)
+    }
+
+    return modalData.unlocking.reduce((sum, chunk) => {
+      if (chunk.era + UNBONDING_PERIOD_ERAS <= currentEra) {
+        return sum.add(chunk.value)
+      }
+      return sum
+    }, new BN(0))
+  }, [currentEra, modalData.unlocking, modalData.action])
+
+  const hasWithdrawableFunds = withdrawableAmount.gt(new BN(0))
+
   useEffect(() => {
     const loadInfo = async () => {
       try {
@@ -68,6 +98,8 @@ const ManageStashActionModalInner = ({ modalData }: ManageStashActionModalInnerP
           setSlashingSpans(spans?.spanIndex || 0)
         } else if (modalData.action === 'bondRebond') {
           await getUnbondingInfo(modalData.stash)
+        } else if (modalData.action === 'changeController' && modalData.controller) {
+          setSelectedController(modalData.controller)
         }
       } catch {
         // Handle error silently
@@ -77,7 +109,7 @@ const ManageStashActionModalInner = ({ modalData }: ManageStashActionModalInnerP
     }
 
     loadInfo()
-  }, [modalData.action, modalData.stash, getSlashingSpans, getUnbondingInfo])
+  }, [modalData.action, modalData.stash, modalData.controller, getSlashingSpans, getUnbondingInfo])
 
   const joyToBalance = (joy: string): bigint => {
     const joyAmount = parseFloat(joy)
@@ -107,6 +139,7 @@ const ManageStashActionModalInner = ({ modalData }: ManageStashActionModalInnerP
         }
       }
       case 'withdraw':
+        if (!hasWithdrawableFunds) return undefined
         return withdrawUnbonded(slashingSpans)
       case 'changeController':
         if (!selectedController) return undefined
@@ -124,6 +157,7 @@ const ManageStashActionModalInner = ({ modalData }: ManageStashActionModalInnerP
     selectedController,
     payee,
     slashingSpans,
+    hasWithdrawableFunds,
     bondExtra,
     rebond,
     withdrawUnbonded,
@@ -206,7 +240,8 @@ const ManageStashActionModalInner = ({ modalData }: ManageStashActionModalInnerP
     !canAfford ||
     isLoadingInfo ||
     (modalData.action === 'bondRebond' && (!amount || parseFloat(amount) <= 0)) ||
-    (modalData.action === 'changeController' && !selectedController)
+    (modalData.action === 'changeController' && !selectedController) ||
+    (modalData.action === 'withdraw' && !hasWithdrawableFunds)
 
   return (
     <Modal modalSize="m" modalHeight="m" onClose={hideModal}>
@@ -266,13 +301,24 @@ const ManageStashActionModalInner = ({ modalData }: ManageStashActionModalInnerP
                 for transfer.
               </TextMedium>
 
-              {modalData.unlocking && modalData.unlocking.length > 0 && (
+              {hasWithdrawableFunds ? (
                 <TextSmall>
-                  <strong>Available to withdraw:</strong>{' '}
+                  <strong>Available to withdraw:</strong> {balanceToJoy(BigInt(withdrawableAmount.toString()))} JOY
+                </TextSmall>
+              ) : (
+                <TextSmall style={{ color: 'orange' }}>
+                  <strong>No funds available to withdraw.</strong> All unbonding chunks are still in the 28-day
+                  unbonding period.
+                </TextSmall>
+              )}
+
+              {modalData.unlocking && modalData.unlocking.length > 0 && !hasWithdrawableFunds && (
+                <TextSmall>
+                  <strong>Total unbonding:</strong>{' '}
                   {balanceToJoy(
                     BigInt(modalData.unlocking.reduce((sum, chunk) => sum.add(chunk.value), new BN(0)).toString())
                   )}{' '}
-                  JOY
+                  JOY (not yet available)
                 </TextSmall>
               )}
 

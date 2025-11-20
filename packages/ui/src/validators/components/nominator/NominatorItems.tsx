@@ -1,18 +1,24 @@
 import BN from 'bn.js'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { combineLatest, first, map, of } from 'rxjs'
 import styled from 'styled-components'
 
 import { AccountInfo } from '@/accounts/components/AccountInfo'
+import { encodeAddress } from '@/accounts/model/encodeAddress'
 import { Account } from '@/accounts/types'
-import { ButtonGhost, ButtonPrimary } from '@/common/components/buttons'
+import { useApi } from '@/api/hooks/useApi'
+import { ButtonGhost } from '@/common/components/buttons'
 import { TransactionButtonWrapper } from '@/common/components/buttons/TransactionButton'
 import { EditSymbol } from '@/common/components/icons/symbols'
 import { DeleteSymbol } from '@/common/components/icons/symbols/DeleteSymbol'
+import { LockSymbol } from '@/common/components/icons/symbols/LockSymbol'
 import { TableListItemAsLinkHover } from '@/common/components/List'
+import { Tooltip } from '@/common/components/Tooltip'
 import { TextMedium, TextSmall, TokenValue } from '@/common/components/typography'
-import { BorderRad, Colors, Sizes, Transitions, BN_ZERO, ZIndex } from '@/common/constants'
+import { BorderRad, Colors, Sizes, Transitions, BN_ZERO, ERAS_PER_DAY, ZIndex } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
+import { useObservable } from '@/common/hooks/useObservable'
 import { shortenAddress } from '@/common/model/formatters'
 import { MyStashPosition } from '@/validators/hooks/useMyStashPositions'
 import { ManageStashAction, ManageStashActionModalCall } from '@/validators/modals/ManageStashActionModal'
@@ -103,6 +109,79 @@ export const NorminatorDashboardItem = ({
 
   const assignmentsLabel = position.role === 'validator' ? 'nominators' : 'nominations'
 
+  const { api } = useApi()
+
+  const currentEra = useObservable(() => {
+    if (!api) return of(undefined)
+    return api.query.staking.activeEra().pipe(
+      map((activeEra) => {
+        if (activeEra.isNone) return undefined
+        return activeEra.unwrap().index.toNumber()
+      }),
+      first()
+    )
+  }, [api?.isConnected])
+
+  const activeValidators = useObservable(() => {
+    if (!api) return of([] as string[])
+    return api.query.session.validators().pipe(
+      map((validators) => validators.map((v) => v.toString())),
+      first()
+    )
+  }, [api?.isConnected])
+
+  interface NominationInfo {
+    address: string
+    isActive: boolean
+    stake?: BN
+  }
+
+  const nominationsInfo = useObservable<NominationInfo[]>(() => {
+    if (!api || position.role !== 'nominator' || !position.nominations.length || !currentEra) {
+      return of([])
+    }
+
+    const activeValidatorsSet = new Set(activeValidators || [])
+
+    const exposureQueries = position.nominations
+      .filter((nom) => activeValidatorsSet.has(nom))
+      .map((nom) =>
+        api.query.staking.erasStakers(currentEra, nom).pipe(
+          map((exposure) => {
+            if (!exposure || exposure.isEmpty) return { address: nom, isActive: true, stake: BN_ZERO }
+            const stash = position.stash
+            const nominatorExposure = exposure.others.find((other) => other.who.toString() === stash)
+            return {
+              address: nom,
+              isActive: true,
+              stake: nominatorExposure ? nominatorExposure.value.toBn() : BN_ZERO,
+            }
+          }),
+          first()
+        )
+      )
+
+    const inactiveNominations: NominationInfo[] = position.nominations
+      .filter((nom) => !activeValidatorsSet.has(nom))
+      .map((nom) => ({ address: nom, isActive: false }))
+
+    if (exposureQueries.length === 0) {
+      return of(inactiveNominations)
+    }
+
+    return combineLatest(exposureQueries).pipe(
+      map((activeInfos) => [...activeInfos, ...inactiveNominations]),
+      first()
+    )
+  }, [api?.isConnected, currentEra, activeValidators, position.nominations, position.role, position.stash])
+
+  const activeNominationsCount = useMemo(() => {
+    if (position.role === 'validator') return assignmentsCount
+    if (!activeValidators || !position.nominations.length) return 0
+    const activeSet = new Set(activeValidators)
+    return position.nominations.filter((nom) => activeSet.has(nom)).length
+  }, [position.role, position.nominations, activeValidators, assignmentsCount])
+
   const unlockingTotal = useMemo(
     () => position.unlocking.reduce((sum, chunk) => sum.add(chunk.value), new BN(0)),
     [position.unlocking]
@@ -118,6 +197,73 @@ export const NorminatorDashboardItem = ({
 
   const canStop = position.role !== 'inactive'
   const canUnbond = position.role === 'inactive' && (!position.totalStake.isZero() || !unlockingTotal.isZero())
+
+  const rewardDestination = useObservable(() => {
+    if (!api || !position.controller) return of(undefined)
+    return api.query.staking.payee(position.controller).pipe(
+      map((payee) => {
+        if (payee.isStaked) return 'Staked'
+        if (payee.isStash) return 'Stash'
+        if (payee.isController) return 'Controller'
+        if (payee.isAccount) return 'Account'
+        return 'Staked'
+      }),
+      first()
+    )
+  }, [api?.isConnected, position.controller])
+
+  const UNBONDING_PERIOD_ERAS = 112
+
+  const getUnbondingTimeInfo = useMemo(() => {
+    if (!currentEra || !position.unlocking.length) {
+      return { hasUnbonding: false, remainingEras: 0, isRecoverable: false }
+    }
+
+    const earliestChunk = position.unlocking.reduce((earliest, chunk) => {
+      if (!earliest || chunk.era < earliest.era) return chunk
+      return earliest
+    }, position.unlocking[0])
+
+    const remainingEras = Math.max(0, earliestChunk.era + UNBONDING_PERIOD_ERAS - currentEra)
+    const isRecoverable = remainingEras === 0 && earliestChunk.era + UNBONDING_PERIOD_ERAS <= currentEra
+
+    return {
+      hasUnbonding: true,
+      remainingEras,
+      earliestEra: earliestChunk.era,
+      isRecoverable,
+    }
+  }, [currentEra, position.unlocking])
+
+  const formatUnbondingTime = useMemo(() => {
+    if (!getUnbondingTimeInfo.hasUnbonding) return null
+    if (getUnbondingTimeInfo.isRecoverable) return 'Recoverable'
+
+    const { remainingEras } = getUnbondingTimeInfo
+    const remainingDays = Math.floor(remainingEras / ERAS_PER_DAY)
+    const remainingHours = Math.floor((remainingEras % ERAS_PER_DAY) * 6)
+
+    if (remainingDays > 0) {
+      return `${remainingDays} day${remainingDays > 1 ? 's' : ''} ${remainingHours} hr${
+        remainingHours !== 1 ? 's' : ''
+      }`
+    }
+    return `${remainingHours} hr${remainingHours !== 1 ? 's' : ''}`
+  }, [getUnbondingTimeInfo])
+
+  const openChangeControllerModal = () => {
+    showModal<ManageStashActionModalCall>({
+      modal: 'ManageStashActionModal',
+      data: {
+        stash: position.stash,
+        controller: position.controller,
+        action: 'changeController',
+        activeStake: position.activeStake,
+        totalStake: position.totalStake,
+        unlocking: position.unlocking,
+      },
+    })
+  }
 
   const openManageActionModal = (action: ManageStashAction) =>
     showModal<ManageStashActionModalCall>({
@@ -192,9 +338,6 @@ export const NorminatorDashboardItem = ({
     })
   }
 
-  const primaryAction = position.role === 'nominator' ? openSetNomineesModal : () => openManageActionModal('bondRebond')
-  const primaryLabel = position.role === 'nominator' ? 'Set nominees' : 'Manage stake'
-
   return (
     <ValidatorItemWrapper>
       <ValidatorItemWrap>
@@ -206,20 +349,143 @@ export const NorminatorDashboardItem = ({
           <RoleBadge role={roleVariant}>{roleLabel}</RoleBadge>
         </RoleCell>
 
-        <TokenValue value={position.activeStake} />
-        <TokenValue value={position.totalStake} />
-        <TokenValue value={unlockingTotal} />
+        <ControllerCell>
+          {position.controller ? (
+            <>
+              <TextSmall>{shortenAddress(position.controller)}</TextSmall>
+              <ButtonForTransfer
+                size="small"
+                square
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openChangeControllerModal()
+                }}
+              >
+                <EditSymbol />
+              </ButtonForTransfer>
+            </>
+          ) : (
+            <TextSmall lighter>-</TextSmall>
+          )}
+        </ControllerCell>
+
+        <RewardsCell>
+          <TextSmall>{rewardDestination || '-'}</TextSmall>
+        </RewardsCell>
+
+        <StakeCell>
+          <StakeInfo>
+            {!position.activeStake.isZero() && (
+              <StakeRow>
+                <TokenValue value={position.activeStake} />
+                <TextSmall lighter>bonded</TextSmall>
+              </StakeRow>
+            )}
+            {getUnbondingTimeInfo.hasUnbonding && !getUnbondingTimeInfo.isRecoverable && (
+              <>
+                <StakeRow>
+                  <TokenValue value={unlockingTotal} />
+                  <TextSmall lighter>unbonding</TextSmall>
+                </StakeRow>
+                {formatUnbondingTime && (
+                  <UnbondingTime>
+                    <TextSmall lighter>{formatUnbondingTime}</TextSmall>
+                  </UnbondingTime>
+                )}
+              </>
+            )}
+            {getUnbondingTimeInfo.hasUnbonding && getUnbondingTimeInfo.isRecoverable && (
+              <StakeRow>
+                <TextMedium>Recoverable</TextMedium>
+                <RecoverableButton
+                  size="small"
+                  square
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openManageActionModal('withdraw')
+                  }}
+                  title="Recoverable - click to withdraw"
+                >
+                  <LockSymbol />
+                </RecoverableButton>
+              </StakeRow>
+            )}
+          </StakeInfo>
+        </StakeCell>
 
         <AssignmentsCell>
-          <TextMedium>{assignmentsCount}</TextMedium>
-          <TextSmall lighter>{assignmentsLabel}</TextSmall>
+          {position.role === 'nominator' && position.nominations.length > 0 ? (
+            <Tooltip
+              popupContent={
+                <NominationsTooltipContent>
+                  {nominationsInfo && nominationsInfo.length > 0 && (
+                    <>
+                      {nominationsInfo.some((n) => n.isActive) && (
+                        <>
+                          <TooltipSection>
+                            <TooltipSectionTitle>
+                              Active ({nominationsInfo.filter((n) => n.isActive).length})
+                            </TooltipSectionTitle>
+                            {nominationsInfo
+                              .filter((n) => n.isActive)
+                              .map((nom) => (
+                                <TooltipRow key={nom.address}>
+                                  <TextSmall>{encodeAddress(nom.address)}</TextSmall>
+                                  {nom.stake !== undefined && (
+                                    <TextSmall>
+                                      <TokenValue value={nom.stake} />
+                                    </TextSmall>
+                                  )}
+                                </TooltipRow>
+                              ))}
+                          </TooltipSection>
+                          {nominationsInfo.some((n) => !n.isActive) && <TooltipDivider />}
+                        </>
+                      )}
+                      {nominationsInfo.some((n) => !n.isActive) && (
+                        <TooltipSection>
+                          <TooltipSectionTitle>
+                            Inactive ({nominationsInfo.filter((n) => !n.isActive).length})
+                          </TooltipSectionTitle>
+                          {nominationsInfo
+                            .filter((n) => !n.isActive)
+                            .map((nom) => (
+                              <TooltipRow key={nom.address}>
+                                <TextSmall>{encodeAddress(nom.address)}</TextSmall>
+                              </TooltipRow>
+                            ))}
+                        </TooltipSection>
+                      )}
+                    </>
+                  )}
+                </NominationsTooltipContent>
+              }
+            >
+              <NominationsIndicator>
+                <TextMedium>
+                  {activeNominationsCount} / {position.nominations.length}
+                </TextMedium>
+                <ButtonForTransfer
+                  size="small"
+                  square
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openSetNomineesModal()
+                  }}
+                >
+                  <EditSymbol />
+                </ButtonForTransfer>
+              </NominationsIndicator>
+            </Tooltip>
+          ) : (
+            <>
+              <TextMedium>{assignmentsCount}</TextMedium>
+              <TextSmall lighter>{assignmentsLabel}</TextSmall>
+            </>
+          )}
         </AssignmentsCell>
 
         <TokenValue value={claimableReward} />
-
-        <ButtonPrimary size="small" onClick={primaryAction}>
-          {primaryLabel}
-        </ButtonPrimary>
 
         <TransactionButtonWrapper>
           <MenuContainer ref={menuRef}>
@@ -281,28 +547,27 @@ export const NorminatorDashboardItem = ({
                 </MenuDropdown>,
                 document.body
               )}
+            {canStop ? (
+              <ButtonGhost size="small" onClick={openStopStakingModal} disabled={!position.controller}>
+                Stop
+              </ButtonGhost>
+            ) : (
+              <TransactionButtonWrapper>
+                <ButtonForTransfer
+                  size="small"
+                  square
+                  disabled={!canUnbond}
+                  onClick={() => {
+                    if (!canUnbond) return
+                    openUnbondModal()
+                  }}
+                >
+                  <DeleteSymbol />
+                </ButtonForTransfer>
+              </TransactionButtonWrapper>
+            )}
           </MenuContainer>
         </TransactionButtonWrapper>
-
-        {canStop ? (
-          <ButtonGhost size="small" onClick={openStopStakingModal} disabled={!position.controller}>
-            Stop
-          </ButtonGhost>
-        ) : (
-          <TransactionButtonWrapper>
-            <ButtonForTransfer
-              size="small"
-              square
-              disabled={!canUnbond}
-              onClick={() => {
-                if (!canUnbond) return
-                openUnbondModal()
-              }}
-            >
-              <DeleteSymbol />
-            </ButtonForTransfer>
-          </TransactionButtonWrapper>
-        )}
       </ValidatorItemWrap>
     </ValidatorItemWrapper>
   )
@@ -320,7 +585,7 @@ const ValidatorItemWrapper = styled.div`
 
 export const ValidatorItemWrap = styled.div`
   display: grid;
-  grid-template-columns: 280px 100px 120px 120px 120px 140px 140px 140px 40px 86px;
+  grid-template-columns: 280px 100px 140px 120px 180px 140px 140px 40px 40px 40px;
   grid-template-rows: 1fr;
   justify-content: space-between;
   justify-items: start;
@@ -347,6 +612,91 @@ const AssignmentsCell = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
+`
+
+const ControllerCell = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+`
+
+const RewardsCell = styled.div`
+  display: flex;
+  align-items: center;
+  width: 100%;
+`
+
+const StakeCell = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  gap: 4px;
+`
+
+const StakeInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+`
+
+const StakeRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const UnbondingTime = styled.div`
+  display: flex;
+  align-items: center;
+`
+
+const RecoverableButton = styled(ButtonGhost)`
+  padding: 4px;
+  svg {
+    color: ${Colors.Blue[500]};
+  }
+`
+
+const NominationsIndicator = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const NominationsTooltipContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 240px;
+  max-width: 320px;
+`
+
+const TooltipSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`
+
+const TooltipSectionTitle = styled(TextSmall)`
+  font-weight: 700;
+  color: ${Colors.White};
+  margin-bottom: 4px;
+`
+
+const TooltipRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+`
+
+const TooltipDivider = styled.div`
+  height: 1px;
+  background-color: ${Colors.Black[600]};
+  margin: 4px 0;
 `
 
 const ButtonForTransfer = styled(ButtonGhost)`
@@ -392,6 +742,7 @@ const MenuItem = styled.button<{ disabled?: boolean }>`
 const MenuContainer = styled.div`
   position: relative;
   display: flex;
+  gap: 0;
   align-items: center;
 `
 

@@ -1,5 +1,5 @@
 import { get } from 'lodash'
-import React, { memo, ReactElement, useEffect, useMemo, useState } from 'react'
+import React, { memo, ReactElement, useEffect, useMemo, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
 import styled from 'styled-components'
 
@@ -274,6 +274,12 @@ export const GlobalModals = () => {
   const { status } = useTransactionStatus()
   const Modal = useMemo(() => (modal && modal in modals ? memo(() => modals[modal as ModalNames]) : null), [modal])
   const { wallet } = useMyAccounts()
+  const redirectAttemptedRef = React.useRef<string | null>(null)
+  const showModalRef = React.useRef(showModal)
+
+  useEffect(() => {
+    showModalRef.current = showModal
+  }, [showModal])
 
   const [container, setContainer] = useState(document.body)
   useEffect(() => {
@@ -284,22 +290,37 @@ export const GlobalModals = () => {
   const potentialFallback = useGlobalModalHandler(currentModalMachine, hideModal)
 
   useEffect(() => {
-    if (modal && !GUEST_ACCESSIBLE_MODALS.includes(modal as ModalNames) && !activeMember) {
+    if (!modal || GUEST_ACCESSIBLE_MODALS.includes(modal as ModalNames) || activeMember) {
+      redirectAttemptedRef.current = null
+      return
+    }
+
+    if (modal === 'SwitchMember' || modal === 'OnBoardingModal') {
+      return
+    }
+
+    if (redirectAttemptedRef.current === modal) {
+      return
+    }
+
+    redirectAttemptedRef.current = modal
+
+    setTimeout(() => {
       if (wallet) {
-        showModal<SwitchMemberModalCall>({
+        showModalRef.current({
           modal: 'SwitchMember',
           data: {
             originalModalName: modal as ModalNames,
             originalModalData: modalData,
           },
-        })
+        } as SwitchMemberModalCall)
       } else {
-        showModal({
+        showModalRef.current({
           modal: 'OnBoardingModal',
         })
       }
-    }
-  }, [modal, activeMember, wallet, modalData, showModal])
+    }, 0)
+  }, [modal, activeMember, wallet, modalData])
 
   if (modal && !GUEST_ACCESSIBLE_MODALS.includes(modal as ModalNames) && !activeMember) {
     return null
@@ -333,30 +354,66 @@ const SpinnerGlass = styled(ModalGlass)`
 `
 
 const useGlobalModalHandler = (machine: UnknownMachine<any, any, any> | undefined, hideModal: () => void) => {
-  if (!machine) return null
+  const [fallback, setFallback] = useState<ReactElement | null>(null)
+  const prevStateValueRef = useRef<string | undefined>(undefined)
+  const hideModalRef = useRef(hideModal)
 
-  const [state, send] = machine
+  useEffect(() => {
+    hideModalRef.current = hideModal
+  }, [hideModal])
 
-  if (state.matches('canceled')) {
-    const backTarget = state.meta?.['(machine).canceled']?.backTarget
-    backTarget ? send(backTarget) : hideModal()
-  }
+  useEffect(() => {
+    if (!machine) {
+      setFallback(null)
+      prevStateValueRef.current = undefined
+      return
+    }
 
-  if (state.matches('error') && get(state.meta, ['(machine).error', 'message'])) {
-    return (
-      <FailureModal onClose={hideModal} events={state.context.transactionEvents}>
-        {get(state.meta, ['(machine).error', 'message'])}
-      </FailureModal>
-    )
-  }
+    const [state, send] = machine
+    const currentStateValue = state.value.toString()
 
-  if (state.matches('success') && get(state.meta, ['(machine).success', 'message'])) {
-    return <SuccessModal onClose={hideModal} text={get(state.meta, ['(machine).success', 'message'])} />
-  }
+    if (prevStateValueRef.current === currentStateValue) {
+      return
+    }
 
-  if (state.matches('requirementsVerification')) {
-    return <LoaderModal onClose={hideModal} />
-  }
+    prevStateValueRef.current = currentStateValue
 
-  return null
+    if (state.matches('canceled')) {
+      const backTarget = state.meta?.['(machine).canceled']?.backTarget
+      if (backTarget) {
+        send(backTarget)
+      } else {
+        setTimeout(() => {
+          hideModalRef.current()
+        }, 0)
+      }
+      setFallback(null)
+      return
+    }
+
+    if (state.matches('error') && get(state.meta, ['(machine).error', 'message'])) {
+      setFallback(
+        <FailureModal onClose={hideModalRef.current} events={state.context.transactionEvents}>
+          {get(state.meta, ['(machine).error', 'message'])}
+        </FailureModal>
+      )
+      return
+    }
+
+    if (state.matches('success') && get(state.meta, ['(machine).success', 'message'])) {
+      setFallback(
+        <SuccessModal onClose={hideModalRef.current} text={get(state.meta, ['(machine).success', 'message'])} />
+      )
+      return
+    }
+
+    if (state.matches('requirementsVerification')) {
+      setFallback(<LoaderModal onClose={hideModalRef.current} />)
+      return
+    }
+
+    setFallback(null)
+  }, [machine])
+
+  return fallback
 }
