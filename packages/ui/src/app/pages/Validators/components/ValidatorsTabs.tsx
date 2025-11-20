@@ -7,7 +7,7 @@ import { ValidatorsRoutes } from '@/validators/constants/routes'
 export const ValidatorsTabs = () => {
   const tabs = usePageTabs([
     ['Validator List', ValidatorsRoutes.list],
-    ['My Stakes', ValidatorsRoutes.validatordashboard],
+    ['Stakes', ValidatorsRoutes.validatordashboard],
     ['My Bags', ValidatorsRoutes.bags],
     // ['Nominator Dashboard', ValidatorsRoutes.nominator],
   ])

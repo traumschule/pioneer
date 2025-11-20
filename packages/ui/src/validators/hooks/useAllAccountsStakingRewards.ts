@@ -18,6 +18,40 @@ interface EraInfo {
   oldestEra: number
 }
 
+const STORAGE_KEY_PREFIX = 'staking_claimed_eras_'
+
+// Get claimed eras from localStorage
+const getCachedClaimedEras = (address: string): Set<number> => {
+  try {
+    const cached = localStorage.getItem(`${STORAGE_KEY_PREFIX}${address}`)
+    if (cached) {
+      const data = JSON.parse(cached)
+      // Check if cache is still valid (within last 24 hours)
+      if (data.timestamp && Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+        return new Set(data.claimedEras || [])
+      }
+    }
+  } catch (e) {
+    // Ignore errors
+  }
+  return new Set<number>()
+}
+
+// Save claimed eras to localStorage
+const saveCachedClaimedEras = (address: string, claimedEras: number[]) => {
+  try {
+    localStorage.setItem(
+      `${STORAGE_KEY_PREFIX}${address}`,
+      JSON.stringify({
+        claimedEras,
+        timestamp: Date.now(),
+      })
+    )
+  } catch (e) {
+    // Ignore errors
+  }
+}
+
 export const useAllAccountsStakingRewards = (accounts: Account[]): Map<string, AccountStakingRewards> | undefined => {
   const { api } = useApi()
 
@@ -56,96 +90,145 @@ export const useAllAccountsStakingRewards = (accounts: Account[]): Map<string, A
 
         const { currentEra, oldestEra } = eraInfo as EraInfo
 
-        const erasRewards$ = api.derive.staking.erasRewards().pipe(catchError(() => of([])))
-        const erasPoints$ = api.derive.staking.erasPoints().pipe(catchError(() => of([])))
+        // First, filter accounts that have stash (bonded) and are validators
+        // This avoids expensive processing for accounts without stake
+        const bonded$ = api.query.staking.bonded.multi(addresses)
+        const validators$ = api.query.staking.validators.multi(addresses)
 
-        return combineLatest([erasRewards$, erasPoints$]).pipe(
-          switchMap(([erasRewards, erasPoints]) => {
-            const rewardsByEra = new Map(erasRewards.map((reward: any) => [reward.era.toNumber(), reward]))
-            const pointsByEra = new Map(erasPoints.map((points: any) => [points.era.toNumber(), points]))
+        return combineLatest([bonded$, validators$]).pipe(
+          switchMap(([bondedEntries, validatorPrefs]) => {
+            // Filter to only accounts with stash and validator preferences
+            const validatorStashes: string[] = []
+            const stashToIndex = new Map<string, number>()
 
-            const accountRewards$ = addresses.map((address) =>
-              api.query.staking.bonded(address).pipe(
-                catchError(() => of(null)),
-                switchMap((bonded) => {
-                  if (!bonded || bonded.isNone) {
-                    return of({
-                      address,
-                      totalEarned: BN_ZERO,
-                      claimable: BN_ZERO,
-                      hasClaimable: false,
-                    })
-                  }
+            bondedEntries.forEach((bonded, index) => {
+              const address = addresses[index]
+              const validatorPref = validatorPrefs[index]
+              // Only process validators (skip nominators)
+              if (bonded.isSome && validatorPref && !validatorPref.isEmpty) {
+                validatorStashes.push(address)
+                stashToIndex.set(address, index)
+              }
+            })
 
+            if (validatorStashes.length === 0) {
+              return of(new Map<string, AccountStakingRewards>())
+            }
+
+            // Get controllers for validators and create mapping
+            const stashToController = new Map<string, string>()
+            const controllers: string[] = []
+
+            validatorStashes.forEach((stash) => {
+              const index = stashToIndex.get(stash)
+              if (index !== undefined) {
+                const bonded = bondedEntries[index]
+                if (bonded.isSome) {
                   const controller = bonded.unwrap().toString()
-                  return api.query.staking.ledger(controller).pipe(
-                    catchError(() => of(null)),
-                    map((ledger) => {
-                      if (!ledger || ledger.isNone) {
-                        return {
-                          address,
-                          totalEarned: BN_ZERO,
-                          claimable: BN_ZERO,
-                          hasClaimable: false,
+                  stashToController.set(stash, controller)
+                  controllers.push(controller)
+                }
+              }
+            })
+
+            // Get ledgers for validators only
+            const ledgers$ =
+              controllers.length > 0
+                ? api.query.staking.ledger.multi(controllers).pipe(
+                    map((ledgers) => {
+                      const ledgerMap = new Map<string, { claimedRewards: number[]; controller: string }>()
+                      controllers.forEach((controller, index) => {
+                        const ledger = ledgers[index]
+                        if (ledger.isSome) {
+                          const ledgerData = ledger.unwrap()
+                          const stash = ledgerData.stash.toString()
+                          const claimedRewards = ledgerData.claimedRewards.map((era) => era.toNumber())
+                          // Save to localStorage
+                          saveCachedClaimedEras(stash, claimedRewards)
+                          ledgerMap.set(stash, { claimedRewards, controller })
                         }
-                      }
-
-                      const ledgerData = ledger.unwrap()
-                      const claimedRewards = ledgerData.claimedRewards.map((era) => era.toNumber())
-
-                      const unclaimedEras: number[] = []
-                      for (let era = oldestEra; era < currentEra; era++) {
-                        if (!claimedRewards.includes(era)) {
-                          unclaimedEras.push(era)
-                        }
-                      }
-
-                      let totalEarned = BN_ZERO
-                      let claimable = BN_ZERO
-
-                      for (let era = oldestEra; era < currentEra; era++) {
-                        const reward = rewardsByEra.get(era)
-                        const points = pointsByEra.get(era)
-
-                        if (!reward || !points || reward.eraReward.isZero()) continue
-
-                        const totalPoints = points.eraPoints.toNumber()
-                        if (totalPoints === 0) continue
-
-                        const validatorPoints = points.validators[address]
-                        if (validatorPoints) {
-                          const validatorPointsNum = validatorPoints.toNumber()
-                          const validatorReward = reward.eraReward.muln(validatorPointsNum).divn(totalPoints)
-
-                          totalEarned = totalEarned.add(validatorReward)
-
-                          if (unclaimedEras.includes(era)) {
-                            claimable = claimable.add(validatorReward)
-                          }
-                        }
-                      }
-
-                      return {
-                        address,
-                        totalEarned,
-                        claimable,
-                        hasClaimable: !claimable.isZero(),
-                      }
-                    })
+                      })
+                      return ledgerMap
+                    }),
+                    catchError(() => of(new Map()))
                   )
-                })
-              )
-            )
+                : of(new Map())
 
-            return combineLatest(accountRewards$).pipe(
-              map((rewards) => {
-                const rewardsMap = new Map<string, AccountStakingRewards>()
-                rewards.forEach((reward) => {
-                  rewardsMap.set(reward.address, reward)
+            return ledgers$.pipe(
+              switchMap((ledgerMap) => {
+                // Load cached claimed eras for accounts not in ledgerMap (fallback)
+                validatorStashes.forEach((stash) => {
+                  if (!ledgerMap.has(stash)) {
+                    const cached = getCachedClaimedEras(stash)
+                    if (cached.size > 0) {
+                      ledgerMap.set(stash, { claimedRewards: Array.from(cached), controller: '' })
+                    }
+                  }
                 })
-                return rewardsMap
-              }),
-              catchError(() => of(new Map()))
+
+                // Now fetch eras rewards and points (similar to polkadot-js/apps)
+                const erasRewards$ = api.derive.staking.erasRewards().pipe(catchError(() => of([])))
+                const erasPoints$ = api.derive.staking.erasPoints().pipe(catchError(() => of([])))
+
+                return combineLatest([erasRewards$, erasPoints$]).pipe(
+                  map(([erasRewards, erasPoints]) => {
+                    const pointsByEra = new Map(erasPoints.map((points: any) => [points.era.toNumber(), points]))
+
+                    const rewardsMap = new Map<string, AccountStakingRewards>()
+
+                    const claimedRewardsByStash = new Map<string, Set<number>>()
+                    validatorStashes.forEach((address) => {
+                      const ledgerInfo = ledgerMap.get(address)
+                      const claimedRewards = ledgerInfo?.claimedRewards || []
+                      claimedRewardsByStash.set(address, new Set(claimedRewards))
+                    })
+
+                    erasRewards.forEach((reward: any) => {
+                      const era = reward.era.toNumber()
+                      if (era < oldestEra || era >= currentEra) return
+
+                      const points = pointsByEra.get(era)
+                      if (!points || reward.eraReward.isZero()) return
+
+                      const totalPoints = points.eraPoints.toNumber()
+                      if (totalPoints === 0) return
+
+                      // Process each validator stash for this era
+                      validatorStashes.forEach((address) => {
+                        const validatorPoints = points.validators[address]
+                        if (!validatorPoints) return
+
+                        const validatorPointsNum = validatorPoints.toNumber()
+                        const validatorReward = reward.eraReward.muln(validatorPointsNum).divn(totalPoints)
+
+                        // Find or create entry for this stash (similar to polkadot-js/apps pattern)
+                        let stashRewards = rewardsMap.get(address)
+                        if (!stashRewards) {
+                          stashRewards = {
+                            address,
+                            totalEarned: BN_ZERO,
+                            claimable: BN_ZERO,
+                            hasClaimable: false,
+                          }
+                          rewardsMap.set(address, stashRewards)
+                        }
+
+                        stashRewards.totalEarned = stashRewards.totalEarned.add(validatorReward)
+
+                        // Check if era is unclaimed using Set lookup (O(1) instead of O(n))
+                        const claimedEras = claimedRewardsByStash.get(address)
+                        if (claimedEras && !claimedEras.has(era)) {
+                          stashRewards.claimable = stashRewards.claimable.add(validatorReward)
+                          stashRewards.hasClaimable = true
+                        }
+                      })
+                    })
+
+                    return rewardsMap
+                  }),
+                  catchError(() => of(new Map()))
+                )
+              })
             )
           })
         )

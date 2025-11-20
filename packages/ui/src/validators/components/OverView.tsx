@@ -43,23 +43,31 @@ export function Overview() {
     [JSON.stringify(allAccounts), isDisplayAll, hasAccounts]
   )
 
-  const stakingRewardsMap = useAllAccountsStakingRewards(visibleAccounts)
+  const validatorAccounts = useMemo(() => {
+    if (!stashPositions) return []
+    const validatorStashes = new Set(stashPositions.filter((pos) => pos.role === 'validator').map((pos) => pos.stash))
+    return visibleAccounts.filter((account) => validatorStashes.has(account.address))
+  }, [visibleAccounts, stashPositions])
+
+  const stakingRewardsMap = useAllAccountsStakingRewards(validatorAccounts)
 
   const sortedAccounts = useMemo(
-    () => sortValidatorAccounts(visibleAccounts, sortBy, isDescending, stakingRewardsMap),
-    [visibleAccounts, sortBy, isDescending, stakingRewardsMap]
+    () => sortValidatorAccounts(validatorAccounts, sortBy, isDescending, stakingRewardsMap),
+    [validatorAccounts, sortBy, isDescending, stakingRewardsMap]
   )
 
-  const accountsWithClaimable = useMemo(() => {
-    if (!stakingRewardsMap) {
-      return []
+  const accountsToRender = useMemo(() => {
+    if (stashPositions && validatorAccounts.length > 0) {
+      if (stakingRewardsMap) {
+        return sortedAccounts.filter((account) => stakingRewardsMap.get(account.address)?.hasClaimable)
+      } else {
+        return sortedAccounts
+      }
     }
+    return []
+  }, [sortedAccounts, stakingRewardsMap, stashPositions, validatorAccounts])
 
-    return sortedAccounts.filter((account) => stakingRewardsMap.get(account.address)?.hasClaimable)
-  }, [sortedAccounts, stakingRewardsMap])
-
-  const accountsToRender = stakingRewardsMap ? accountsWithClaimable : []
-  const shouldShowAccountsSection = isLoading || accountsToRender.length > 0 || stakingRewardsMap === undefined
+  const shouldShowAccountsSection = isLoading || accountsToRender.length > 0 || stashPositions === undefined
 
   const chartData = useMyStakingChartData(chartTimeRange)
 
@@ -134,7 +142,7 @@ export function Overview() {
               <Header sortKey="claimable">CLAIMABLE</Header>
             </ListHeaders>
             <List>
-              {isLoading || stakingRewardsMap === undefined ? (
+              {isLoading ? (
                 <LoadingRow>
                   <Loading text="Loading rewards..." withoutMargin />
                 </LoadingRow>
@@ -144,9 +152,13 @@ export function Overview() {
                     <ValidatorAccountItem account={account} stakingRewards={stakingRewardsMap?.get(account.address)} />
                   </ListItem>
                 ))
-              ) : (
+              ) : stakingRewardsMap ? (
                 <LoadingRow>
                   <TextMedium lighter>No claimable rewards found.</TextMedium>
+                </LoadingRow>
+              ) : (
+                <LoadingRow>
+                  <Loading text="Loading rewards..." withoutMargin />
                 </LoadingRow>
               )}
             </List>

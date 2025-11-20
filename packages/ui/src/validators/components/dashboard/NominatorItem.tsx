@@ -5,7 +5,7 @@ import { AccountInfo } from '@/accounts/components/AccountInfo'
 import { Account } from '@/accounts/types'
 import { TableListItemAsLinkHover } from '@/common/components/List'
 import { Skeleton } from '@/common/components/Skeleton'
-import { TextMedium, TextSmall, TokenValue } from '@/common/components/typography'
+import { TextMedium, TokenValue } from '@/common/components/typography'
 import { BorderRad, Colors, Sizes, Transitions } from '@/common/constants'
 import { Block } from '@/common/types'
 import { NominatorInfo, useNominatorInfo } from '@/validators/hooks/useNominatorInfo'
@@ -24,7 +24,8 @@ export interface AccountItemDataProps extends BlockTimeLayoutProps {
 
 export const NominatorAccountItem = ({ account, nominatorInfo: providedInfo }: AccountItemDataProps) => {
   const address = account.address
-  const nominatorInfo = providedInfo ?? useNominatorInfo(address)
+  const fetchedNominatorInfo = useNominatorInfo(address)
+  const nominatorInfo = providedInfo ?? fetchedNominatorInfo
 
   const [isDropped, setDropped] = useState(false)
 
@@ -32,13 +33,13 @@ export const NominatorAccountItem = ({ account, nominatorInfo: providedInfo }: A
     <NominatorItemWarpper>
       <NominatorItemWarp key={address} onClick={() => setDropped(!isDropped)}>
         <AccountInfo account={account} />
-        <TextMedium>
-          {nominatorInfo?.isNominating ? (
-            `${nominatorInfo.targets.length} Validator${nominatorInfo.targets.length !== 1 ? 's' : ''}`
-          ) : (
-            <TextSmall lighter>Not nominating</TextSmall>
-          )}
-        </TextMedium>
+        {nominatorInfo?.isNominating ? (
+          <TextMedium>
+            {`${nominatorInfo.targets.length} Validator${nominatorInfo.targets.length !== 1 ? 's' : ''}`}
+          </TextMedium>
+        ) : (
+          <TextMedium lighter>Not nominating</TextMedium>
+        )}
         <TokenValue value={nominatorInfo?.totalStake} isLoading={!nominatorInfo} />
       </NominatorItemWarp>
     </NominatorItemWarpper>
