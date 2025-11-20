@@ -12,6 +12,41 @@ export interface MyStakingRewards {
   claimableRewards: BN
   monthlyRewards: BN
   unclaimedEras: number[]
+  claimedEras: number[]
+}
+
+const STORAGE_KEY_PREFIX = 'staking_claimed_eras_'
+
+// Get claimed eras from localStorage
+const getCachedClaimedEras = (address: string): Set<number> => {
+  try {
+    const cached = localStorage.getItem(`${STORAGE_KEY_PREFIX}${address}`)
+    if (cached) {
+      const data = JSON.parse(cached)
+      // Check if cache is still valid (within last 24 hours)
+      if (data.timestamp && Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+        return new Set(data.claimedEras || [])
+      }
+    }
+  } catch (e) {
+    // Ignore errors
+  }
+  return new Set<number>()
+}
+
+// Save claimed eras to localStorage
+const saveCachedClaimedEras = (address: string, claimedEras: number[]) => {
+  try {
+    localStorage.setItem(
+      `${STORAGE_KEY_PREFIX}${address}`,
+      JSON.stringify({
+        claimedEras,
+        timestamp: Date.now(),
+      })
+    )
+  } catch (e) {
+    // Ignore errors
+  }
 }
 
 /**
@@ -45,6 +80,7 @@ export const useMyStakingRewards = (): MyStakingRewards | undefined => {
             claimableRewards: BN_ZERO,
             monthlyRewards: BN_ZERO,
             unclaimedEras: [],
+            claimedEras: [],
           })
         }
 
@@ -61,9 +97,13 @@ export const useMyStakingRewards = (): MyStakingRewards | undefined => {
                   map((ledger) => {
                     if (ledger.isNone) return null
                     const ledgerData = ledger.unwrap()
+                    const stash = ledgerData.stash.toString()
+                    const claimedRewards = ledgerData.claimedRewards.map((era) => era.toNumber())
+                    // Save to localStorage
+                    saveCachedClaimedEras(stash, claimedRewards)
                     return {
-                      stash: ledgerData.stash.toString(),
-                      claimedRewards: ledgerData.claimedRewards.map((era) => era.toNumber()),
+                      stash,
+                      claimedRewards,
                     }
                   })
                 )
@@ -85,13 +125,35 @@ export const useMyStakingRewards = (): MyStakingRewards | undefined => {
                 claimableRewards: BN_ZERO,
                 monthlyRewards: BN_ZERO,
                 unclaimedEras: [],
+                claimedEras: [],
               })
             }
 
             // Create a map of claimed eras for quick lookup
             const claimedErasSet = new Set<number>()
+            const allClaimedEras: number[] = []
+
+            // Load claimed eras from ledgers
             ledgers.forEach((ledger) => {
-              ledger.claimedRewards.forEach((era) => claimedErasSet.add(era))
+              ledger.claimedRewards.forEach((era) => {
+                claimedErasSet.add(era)
+                if (!allClaimedEras.includes(era)) {
+                  allClaimedEras.push(era)
+                }
+              })
+            })
+
+            addresses.forEach((address) => {
+              const hasLedger = ledgers.some((ledger) => ledger.stash === address)
+              if (!hasLedger) {
+                const cached = getCachedClaimedEras(address)
+                cached.forEach((era) => {
+                  claimedErasSet.add(era)
+                  if (!allClaimedEras.includes(era)) {
+                    allClaimedEras.push(era)
+                  }
+                })
+              }
             })
 
             let totalRewards = BN_ZERO
@@ -148,6 +210,7 @@ export const useMyStakingRewards = (): MyStakingRewards | undefined => {
               claimableRewards,
               monthlyRewards,
               unclaimedEras: unclaimedEras.sort((a, b) => a - b),
+              claimedEras: allClaimedEras.sort((a, b) => a - b),
             })
           })
         )

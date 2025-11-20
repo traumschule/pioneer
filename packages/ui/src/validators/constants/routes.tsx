@@ -1,6 +1,7 @@
 export const ValidatorsRoutes = {
   list: '/validators',
-  validatordashboard: '/validators/stakes',
+  stakes: '/validators/stakes',
+  validatordashboard: '/validators/stakes', // Keep for backwards compatibility
   nominator: '/validators/nominator',
   bags: '/validators/bags',
 } as const
