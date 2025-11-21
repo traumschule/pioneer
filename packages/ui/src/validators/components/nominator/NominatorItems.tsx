@@ -554,9 +554,27 @@ export const NorminatorDashboardItem = ({
                                       <TooltipText>{shortenAddress(encodeAddress(nom.address), 20)}</TooltipText>
                                       {nom.stake && (
                                         <TooltipText>
-                                          {abbreviateTokenAmount(
-                                            nom.stake instanceof BN ? nom.stake.toNumber() : nom.stake
-                                          )}
+                                          {(() => {
+                                            try {
+                                              const stake = nom.stake as any
+                                              if (stake instanceof BN) {
+                                                return abbreviateTokenAmount(stake)
+                                              } else if (stake && typeof stake.toNumber === 'function') {
+                                                return abbreviateTokenAmount(stake.toNumber())
+                                              } else if (stake && typeof stake.toBn === 'function') {
+                                                return abbreviateTokenAmount(stake.toBn())
+                                              } else if (typeof stake === 'number' || typeof stake === 'string') {
+                                                return abbreviateTokenAmount(stake)
+                                              } else {
+                                                error('Unexpected stake type:', stake, typeof stake)
+                                                return '0'
+                                              }
+                                            } catch (err) {
+                                              error('Error converting stake to number:', err)
+                                              error('Stake value:', nom.stake)
+                                              return '0'
+                                            }
+                                          })()}
                                         </TooltipText>
                                       )}
                                     </TooltipRow>
