@@ -49,11 +49,26 @@ interface Props {
 }
 
 // Helper function to abbreviate token amounts (e.g., 500k, 2.3M)
-const abbreviateTokenAmount = (value: BN | undefined): string => {
+const abbreviateTokenAmount = (value: BN | number | string | undefined | null): string => {
   try {
-    if (!value || value.isZero()) return '0'
+    if (!value) return '0'
 
-    const joyValue = value.divn(Math.pow(10, JOY_DECIMAL_PLACES)).toNumber()
+    // Convert to BN if needed
+    let bnValue: BN
+    if (typeof value === 'number') {
+      bnValue = new BN(value)
+    } else if (typeof value === 'string') {
+      bnValue = new BN(value)
+    } else if (value instanceof BN) {
+      bnValue = value
+    } else {
+      error('abbreviateTokenAmount: Invalid value type', value, typeof value)
+      return '0'
+    }
+
+    if (bnValue.isZero()) return '0'
+
+    const joyValue = bnValue.divn(Math.pow(10, JOY_DECIMAL_PLACES)).toNumber()
     const absValue = Math.abs(joyValue)
 
     if (absValue >= 1_000_000_000) {
@@ -537,8 +552,12 @@ export const NorminatorDashboardItem = ({
                                   return (
                                     <TooltipRow key={nom.address}>
                                       <TooltipText>{shortenAddress(encodeAddress(nom.address), 20)}</TooltipText>
-                                      {nom.stake && !nom.stake.isZero() && (
-                                        <TooltipText>{abbreviateTokenAmount(nom.stake)}</TooltipText>
+                                      {nom.stake && (
+                                        <TooltipText>
+                                          {abbreviateTokenAmount(
+                                            nom.stake instanceof BN ? nom.stake.toNumber() : nom.stake
+                                          )}
+                                        </TooltipText>
                                       )}
                                     </TooltipRow>
                                   )
