@@ -48,27 +48,22 @@ interface Props {
 }
 
 // Helper function to abbreviate token amounts (e.g., 500k, 2.3M)
-const abbreviateTokenAmount = (value: BN): string => {
-  if (value.isZero()) return '0'
+const abbreviateTokenAmount = (value: BN | undefined): string => {
+  if (!value || value.isZero()) return '0'
 
-  // Convert to JOY (divide by 10^JOY_DECIMAL_PLACES)
   const joyValue = value.divn(Math.pow(10, JOY_DECIMAL_PLACES)).toNumber()
   const absValue = Math.abs(joyValue)
 
   if (absValue >= 1_000_000_000) {
-    // Billions
     const billions = joyValue / 1_000_000_000
     return `${billions.toFixed(1)}B`
   } else if (absValue >= 1_000_000) {
-    // Millions
     const millions = joyValue / 1_000_000
     return `${millions.toFixed(1)}M`
   } else if (absValue >= 1_000) {
-    // Thousands
     const thousands = joyValue / 1_000
     return `${thousands.toFixed(0)}k`
   } else {
-    // Less than 1000, show with 1 decimal place
     return joyValue.toFixed(1)
   }
 }
@@ -527,7 +522,7 @@ export const NorminatorDashboardItem = ({
                               .map((nom) => (
                                 <TooltipRow key={nom.address}>
                                   <TooltipText>{shortenAddress(encodeAddress(nom.address), 20)}</TooltipText>
-                                  {nom.stake !== undefined && (
+                                  {nom.stake && !nom.stake.isZero() && (
                                     <TooltipText>{abbreviateTokenAmount(nom.stake)}</TooltipText>
                                   )}
                                 </TooltipRow>
