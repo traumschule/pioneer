@@ -130,11 +130,11 @@ export const NominatorPositionsTable = ({
         </FilterRow>
       )}
       <ListHeaders>
-        <ListHeader>Stash</ListHeader>
         <ListHeader>Role</ListHeader>
+        <ListHeader>Stash</ListHeader>
         <ListHeader>Controller</ListHeader>
         <ListHeader>Rewards</ListHeader>
-        <ListHeader>Stake</ListHeader>
+        <ListHeader>Bonded</ListHeader>
         <ListHeader>Nominations</ListHeader>
         <ListHeader>Claimable Reward</ListHeader>
         <ListHeader />

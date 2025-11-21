@@ -377,13 +377,11 @@ const ManageStashActionModalInner = ({ modalData }: ManageStashActionModalInnerP
             <>
               <TextMedium>Change where staking rewards are sent for this stash.</TextMedium>
 
-              <InputComponent label="Reward Destination" inputSize="m" id="payee">
-                <FilterTextSelect
-                  options={['Stash', 'Controller', 'Account']}
-                  value={payee}
-                  onChange={(value) => setPayee(value || 'Stash')}
-                />
-              </InputComponent>
+              <FilterTextSelect
+                options={['Stash', 'Controller', 'Account']}
+                value={payee}
+                onChange={(value) => setPayee(value || 'Stash')}
+              />
 
               <TextSmall>
                 <strong>Note:</strong> Rewards will be sent to the selected destination after the next era.

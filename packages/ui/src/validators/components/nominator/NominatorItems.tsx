@@ -135,10 +135,21 @@ export const NorminatorDashboardItem = ({
       map((activeEra) => {
         if (activeEra.isNone) return undefined
         return activeEra.unwrap().index.toNumber()
-      }),
-      first()
+      })
+      // Remove first() to allow continuous updates for countdown
     )
   }, [api?.isConnected])
+
+  // Force re-render every minute to update countdown display
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (!currentEra) return
+    const interval = setInterval(() => {
+      // Trigger re-render to update countdown display
+      setTick((t) => t + 1)
+    }, 60000) // Update every minute
+    return () => clearInterval(interval)
+  }, [currentEra])
 
   const activeValidators = useObservable(() => {
     if (!api) return of([] as string[])
@@ -153,18 +164,6 @@ export const NorminatorDashboardItem = ({
     isActive: boolean
     stake?: BN
   }
-
-  // Calculate blocks and days from current era (for display purposes)
-  const currentEraBlocks = useMemo(() => {
-    if (!currentEra) return null
-    const BLOCKS_PER_ERA = 3600
-    return new BN(currentEra * BLOCKS_PER_ERA)
-  }, [currentEra])
-
-  const currentEraDays = useMemo(() => {
-    if (!currentEra) return null
-    return Math.floor(currentEra / ERAS_PER_DAY)
-  }, [currentEra])
 
   const nominationsInfo = useObservable<NominationInfo[]>(() => {
     if (!api || position.role !== 'nominator' || !position.nominations.length || !currentEra) {
@@ -265,7 +264,6 @@ export const NorminatorDashboardItem = ({
     }
   }, [currentEra, position.unlocking])
 
-  // Calculate remaining blocks: each era = 6 hours = 3600 blocks (6 hours * 3600 seconds / 6 seconds per block)
   const BLOCKS_PER_ERA = 3600
   const remainingBlocks = useMemo(() => {
     if (!getUnbondingTimeInfo.hasUnbonding || getUnbondingTimeInfo.isRecoverable) return null
@@ -274,7 +272,13 @@ export const NorminatorDashboardItem = ({
 
   const unbondingTooltipText = useMemo(() => {
     if (!getUnbondingTimeInfo.hasUnbonding) return null
-    if (getUnbondingTimeInfo.isRecoverable) return 'Recoverable'
+    if (getUnbondingTimeInfo.isRecoverable) {
+      return (
+        <UnbondingTooltipContent>
+          <TooltipText>Recoverable</TooltipText>
+        </UnbondingTooltipContent>
+      )
+    }
 
     const { remainingEras } = getUnbondingTimeInfo
     const remainingDays = Math.floor(remainingEras / ERAS_PER_DAY)
@@ -290,7 +294,13 @@ export const NorminatorDashboardItem = ({
       timeText = `${remainingHours} hr${remainingHours !== 1 ? 's' : ''}`
     }
 
-    return `${blocks.toString()} blocks (${timeText})`
+    return (
+      <UnbondingTooltipContent>
+        <TooltipText>
+          {blocks.toString()} blocks ({timeText})
+        </TooltipText>
+      </UnbondingTooltipContent>
+    )
   }, [getUnbondingTimeInfo, remainingBlocks])
 
   const openChangeControllerModal = () => {
@@ -433,7 +443,6 @@ export const NorminatorDashboardItem = ({
         <StakeCell>
           <StakeInfo>
             <StakeRow>
-              <TokenValue value={position.activeStake} />
               {getUnbondingTimeInfo.hasUnbonding && !getUnbondingTimeInfo.isRecoverable && unbondingTooltipText && (
                 <Tooltip popupContent={unbondingTooltipText}>
                   <UnbondingClockIcon>
@@ -454,7 +463,15 @@ export const NorminatorDashboardItem = ({
                   <LockSymbol />
                 </RecoverableButton>
               )}
+              <TokenValue value={position.activeStake} />
             </StakeRow>
+            {unlockingTotal.gt(BN_ZERO) && (
+              <StakeRow>
+                <TextSmall lighter>
+                  Unbonding: <TokenValue value={unlockingTotal} />
+                </TextSmall>
+              </StakeRow>
+            )}
           </StakeInfo>
         </StakeCell>
 
@@ -475,7 +492,7 @@ export const NorminatorDashboardItem = ({
                               .filter((n) => n.isActive)
                               .map((nom) => (
                                 <TooltipRow key={nom.address}>
-                                  <TooltipText>{encodeAddress(nom.address)}</TooltipText>
+                                  <TooltipText>{shortenAddress(encodeAddress(nom.address), 20)}</TooltipText>
                                   {nom.stake !== undefined && (
                                     <TooltipText>
                                       <TokenValue value={nom.stake} />
@@ -483,12 +500,6 @@ export const NorminatorDashboardItem = ({
                                   )}
                                 </TooltipRow>
                               ))}
-                            {currentEraBlocks && currentEraDays !== null && (
-                              <TooltipText style={{ marginTop: '4px', fontSize: '12px', opacity: 0.8 }}>
-                                Era {currentEra}: {currentEraBlocks.toString()} blocks ({currentEraDays} day
-                                {currentEraDays !== 1 ? 's' : ''})
-                              </TooltipText>
-                            )}
                           </TooltipSection>
                           {nominationsInfo.some((n) => !n.isActive) && <TooltipDivider />}
                         </>
@@ -502,7 +513,7 @@ export const NorminatorDashboardItem = ({
                             .filter((n) => !n.isActive)
                             .map((nom) => (
                               <TooltipRow key={nom.address}>
-                                <TooltipText>{encodeAddress(nom.address)}</TooltipText>
+                                <TooltipText>{shortenAddress(encodeAddress(nom.address), 20)}</TooltipText>
                               </TooltipRow>
                             ))}
                         </TooltipSection>
@@ -730,8 +741,7 @@ const NominationsTooltipContent = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 240px;
-  max-width: 320px;
+  min-width: 300px;
 `
 
 const TooltipSection = styled.div`
@@ -761,6 +771,12 @@ const TooltipDivider = styled.div`
   height: 1px;
   background-color: ${Colors.Black[500]};
   margin: 8px 0;
+`
+
+const UnbondingTooltipContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 `
 
 const ButtonForTransfer = styled(ButtonGhost)`

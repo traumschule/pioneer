@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react'
+import styled from 'styled-components'
 
+import { AccountInfo } from '@/accounts/components/AccountInfo'
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { encodeAddress } from '@/accounts/model/encodeAddress'
 import { useApi } from '@/api/hooks/useApi'
@@ -10,6 +12,7 @@ import { Modal, ModalBody, ModalHeader, ModalTransactionFooter } from '@/common/
 import { RowGapBlock } from '@/common/components/page/PageContent'
 import { SuccessModal } from '@/common/components/SuccessModal'
 import { TextMedium, TextSmall } from '@/common/components/typography'
+import { Colors } from '@/common/constants'
 import { useMachine } from '@/common/hooks/useMachine'
 import { useModal } from '@/common/hooks/useModal'
 import { useSignAndSendTransaction } from '@/common/hooks/useSignAndSendTransaction'
@@ -78,15 +81,23 @@ const ChangeSessionKeysModalInner = ({ stash, controller }: ChangeSessionKeysMod
     }
   }, [api, keys, proof])
 
-  const signerAccount = useMemo(() => {
+  const stashAccount = useMemo(() => {
+    return allAccounts.find((acc) => acc.address === stash)
+  }, [allAccounts, stash])
+
+  const controllerAccount = useMemo(() => {
     if (controller) {
-      return allAccounts.find((acc) => acc.address === controller) || allAccounts[0]
+      return allAccounts.find((acc) => acc.address === controller)
     }
     if (activeMembership?.controllerAccount) {
-      return allAccounts.find((acc) => acc.address === activeMembership.controllerAccount) || allAccounts[0]
+      return allAccounts.find((acc) => acc.address === activeMembership.controllerAccount)
     }
-    return allAccounts[0]
-  }, [activeMembership, allAccounts, controller])
+    return stashAccount
+  }, [activeMembership, allAccounts, controller, stashAccount])
+
+  const signerAccount = useMemo(() => {
+    return controllerAccount || allAccounts[0]
+  }, [allAccounts, controllerAccount])
 
   const { isReady, sign, paymentInfo, canAfford } = useSignAndSendTransaction({
     transaction,
@@ -126,17 +137,21 @@ const ChangeSessionKeysModalInner = ({ stash, controller }: ChangeSessionKeysMod
       <ModalHeader title="Change Session Keys" onClick={hideModal} />
       <ModalBody>
         <RowGapBlock gap={16}>
-          <TextMedium>
-            Change session keys for validator stash <strong>{encodeAddress(stash)}</strong>.
-          </TextMedium>
+          <AccountSection>
+            <AccountLabel>stash account</AccountLabel>
+            {stashAccount ? <AccountInfo account={stashAccount} /> : <TextSmall>{encodeAddress(stash)}</TextSmall>}
+          </AccountSection>
 
-          <TextSmall>
-            <strong>Note:</strong> Session keys are used by validators to participate in consensus. Changing session
-            keys requires providing the new keys and a proof. The keys should be provided as a JSON array or
-            comma-separated values: [grandpa, babe, im_online, authority_discovery]
-          </TextSmall>
+          <AccountSection>
+            <AccountLabel>controller account</AccountLabel>
+            {controllerAccount ? (
+              <AccountInfo account={controllerAccount} />
+            ) : (
+              <TextSmall>{controller ? encodeAddress(controller) : '-'}</TextSmall>
+            )}
+          </AccountSection>
 
-          <InputComponent label="Session Keys" required inputSize="l" id="session-keys">
+          <InputComponent label="keys from rotatekeys" required inputSize="l" id="session-keys">
             <InputTextarea
               id="session-keys"
               placeholder='["5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY", ...] or comma-separated'
@@ -182,3 +197,18 @@ const ChangeSessionKeysModalInner = ({ stash, controller }: ChangeSessionKeysMod
     </Modal>
   )
 }
+
+const AccountSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed ${Colors.Black[200]};
+  border-radius: 4px;
+`
+
+const AccountLabel = styled(TextSmall)`
+  text-transform: lowercase;
+  color: ${Colors.Black[600]};
+  font-weight: 500;
+`

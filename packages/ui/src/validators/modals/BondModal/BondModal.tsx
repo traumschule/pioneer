@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { catchError, first, map, of } from 'rxjs'
+import { catchError, first, map, of, switchMap } from 'rxjs'
 
 import { SelectAccount } from '@/accounts/components/SelectAccount'
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
@@ -42,36 +42,46 @@ export const BondModal = () => {
     return BigInt(Math.floor(joyAmount * 10_000_000_000))
   }
 
-  // Initialize stash with first account or active membership account
   useEffect(() => {
     if (!stash && allAccounts.length > 0) {
       if (activeMembership?.boundAccounts && activeMembership.boundAccounts.length > 0) {
-        // Prefer accounts bound to membership
         const boundAccount = allAccounts.find((acc) => activeMembership.boundAccounts?.includes(acc.address))
         if (boundAccount) {
           setStash(boundAccount.address)
           return
         }
       }
-      // Fallback to first account
       setStash(allAccounts[0].address)
     }
   }, [stash, allAccounts, activeMembership])
 
-  // When stash changes and controller is empty, set controller to stash initially
   useEffect(() => {
     if (stash && !controller) {
       setController(stash)
     }
   }, [stash, controller])
 
-  // Check if controller is already used
-  const controllerBonded = useObservable(() => {
+  const controllerLedger = useObservable(() => {
     if (!api || !controller) return of(undefined)
     return api.query.staking.bonded(controller).pipe(
-      map((bonded) => {
-        if (bonded.isNone) return null
-        return bonded.unwrap().toString()
+      switchMap((bonded) => {
+        if (bonded.isNone) return of(null)
+        const stashAddress = bonded.unwrap().toString()
+        return api.query.staking.ledger(controller).pipe(
+          map((ledger) => {
+            if (ledger.isNone) return { stash: stashAddress, hasActiveStake: false }
+            const ledgerData = ledger.unwrap()
+            const activeStake = ledgerData.active.toBn()
+            const totalStake = ledgerData.total.toBn()
+            const hasUnlocking = ledgerData.unlocking.length > 0
+            return {
+              stash: stashAddress,
+              hasActiveStake: !activeStake.isZero() || !totalStake.isZero() || hasUnlocking,
+            }
+          }),
+          first(),
+          catchError(() => of({ stash: stashAddress, hasActiveStake: false }))
+        )
       }),
       first(),
       catchError(() => of(null))
@@ -79,28 +89,65 @@ export const BondModal = () => {
   }, [api?.isConnected, controller])
 
   useEffect(() => {
-    if (controller && controllerBonded !== undefined) {
-      if (controllerBonded && controllerBonded !== stash) {
+    if (controller && controllerLedger !== undefined) {
+      if (controllerLedger && controllerLedger.stash !== stash && controllerLedger.hasActiveStake) {
         setControllerError('This account is already used as a controller for another stash')
       } else {
         setControllerError(null)
       }
     }
-  }, [controller, controllerBonded, stash])
+  }, [controller, controllerLedger, stash])
 
-  // Get accounts with locks to filter restricted accounts
   const accountsWithLocks = useStakingAccountsLocks({
     requiredStake: BN_ZERO,
     lockType: 'Staking',
     filterByBalance: false,
   })
 
+  const usedControllers = useObservable(() => {
+    if (!api || !allAccounts.length) return of(new Set<string>())
+    const addresses = allAccounts.map((acc) => acc.address)
+    return api.query.staking.bonded.multi(addresses).pipe(
+      switchMap((bondedEntries) => {
+        const controllers = bondedEntries
+          .map((bonded, index) => ({
+            stash: addresses[index],
+            controller: bonded.isSome ? bonded.unwrap().toString() : undefined,
+          }))
+          .filter((item): item is { stash: string; controller: string } => !!item.controller)
+          .map((item) => item.controller)
+
+        if (controllers.length === 0) return of(new Set<string>())
+
+        return api.query.staking.ledger.multi(controllers).pipe(
+          map((ledgers) => {
+            const usedSet = new Set<string>()
+            ledgers.forEach((ledger, index) => {
+              if (ledger.isNone) return
+              const ledgerData = ledger.unwrap()
+              const activeStake = ledgerData.active.toBn()
+              const totalStake = ledgerData.total.toBn()
+              const hasUnlocking = ledgerData.unlocking.length > 0
+              if (!activeStake.isZero() || !totalStake.isZero() || hasUnlocking) {
+                usedSet.add(controllers[index])
+              }
+            })
+            return usedSet
+          }),
+          first(),
+          catchError(() => of(new Set<string>()))
+        )
+      }),
+      first(),
+      catchError(() => of(new Set<string>()))
+    )
+  }, [api?.isConnected, JSON.stringify(allAccounts.map((a) => a.address))])
+
   const transaction = useMemo(() => {
     if (!api || !amount || parseFloat(amount) <= 0 || !controller || !stash) return undefined
     return bond(controller, joyToBalance(amount), payee)
   }, [api, amount, controller, payee, stash, bond])
 
-  // The signer should be the stash account (the account that holds the funds being bonded)
   const signerAccount = useMemo(() => {
     if (!stash) return allAccounts[0]
     return allAccounts.find((acc) => acc.address === stash) || allAccounts[0]
@@ -163,7 +210,6 @@ export const BondModal = () => {
             <SelectAccount
               onChange={(account) => {
                 setStash(account?.address || '')
-                // Reset controller if stash changes
                 if (account?.address && controller === stash) {
                   setController(account.address)
                 }
@@ -172,7 +218,6 @@ export const BondModal = () => {
               placeholder="Select stash account"
               filter={(account) => {
                 const accountWithLocks = accountsWithLocks.find((acc) => acc.address === account.address)
-                // Filter out accounts with rivalrous locks (Councilor/Worker stake)
                 return !accountWithLocks?.optionLocks?.includes('rivalrousLock')
               }}
             />
@@ -208,6 +253,11 @@ export const BondModal = () => {
               onChange={(account) => setController(account?.address || '')}
               selected={allAccounts.find((acc) => acc.address === controller)}
               placeholder="Select controller account"
+              filter={(account) => {
+                if (!account.address) return true
+                if (account.address === controller) return true
+                return !usedControllers?.has(account.address)
+              }}
             />
           </InputComponent>
 

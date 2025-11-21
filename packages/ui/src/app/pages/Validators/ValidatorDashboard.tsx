@@ -1,22 +1,53 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 
+import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
+import { useMyBalances } from '@/accounts/hooks/useMyBalances'
+import { filterAccounts } from '@/accounts/model/filterAccounts'
 import { PageHeader } from '@/app/components/PageHeader'
 import { PageLayout } from '@/app/components/PageLayout'
 import { RowGapBlock } from '@/common/components/page/PageContent'
 import { MultiTextValueStat, MultiValueStat, Statistics, TokenValueStat } from '@/common/components/statistics'
 import { BN_ZERO } from '@/common/constants'
 import { ValidatorDashboardMain } from '@/validators/components/ValidatorDashboardMain'
+import { useAllAccountsStakingRewards } from '@/validators/hooks/useAllAccountsStakingRewards'
 import { useMyStakingAPR } from '@/validators/hooks/useMyStakingAPR'
 import { useMyStakingInfo } from '@/validators/hooks/useMyStakingInfo'
 import { useMyStakingRewards } from '@/validators/hooks/useMyStakingRewards'
+import { useMyStashPositions } from '@/validators/hooks/useMyStashPositions'
 
 import { ClaimAllButton } from './components/ClaimAllButton'
 import { ValidatorsTabs } from './components/ValidatorsTabs'
 
 export const ValidatorDashboard = () => {
+  const { allAccounts } = useMyAccounts()
+  const balances = useMyBalances()
   const stakingInfo = useMyStakingInfo()
   const stakingRewards = useMyStakingRewards()
   const stakingAPR = useMyStakingAPR()
+  const stashPositions = useMyStashPositions()
+
+  // Calculate total claimable from individual account rewards (same as Overview)
+  const visibleAccounts = useMemo(
+    () => filterAccounts(allAccounts, true, balances),
+    [JSON.stringify(allAccounts), balances]
+  )
+
+  const validatorAccounts = useMemo(() => {
+    if (!stashPositions) return []
+    const validatorStashes = new Set(stashPositions.filter((pos) => pos.role === 'validator').map((pos) => pos.stash))
+    return visibleAccounts.filter((account) => validatorStashes.has(account.address))
+  }, [visibleAccounts, stashPositions])
+
+  const stakingRewardsMap = useAllAccountsStakingRewards(validatorAccounts)
+
+  const totalClaimable = useMemo(() => {
+    if (!stakingRewardsMap) return BN_ZERO
+    let total = BN_ZERO
+    stakingRewardsMap.forEach((rewards) => {
+      total = total.add(rewards.claimable)
+    })
+    return total
+  }, [stakingRewardsMap])
 
   return (
     <PageLayout
@@ -31,7 +62,7 @@ export const ValidatorDashboard = () => {
               tooltipTitle="Claimable Staking Rewards"
               tooltipLinkText="Learn about claiming rewards"
               tooltipLinkURL="#"
-              value={stakingRewards?.claimableRewards}
+              value={totalClaimable}
               actionElement={<ClaimAllButton />}
             />
             <MultiValueStat

@@ -90,21 +90,17 @@ export const useAllAccountsStakingRewards = (accounts: Account[]): Map<string, A
 
         const { currentEra, oldestEra } = eraInfo as EraInfo
 
-        // First, filter accounts that have stash (bonded) and are validators
-        // This avoids expensive processing for accounts without stake
         const bonded$ = api.query.staking.bonded.multi(addresses)
         const validators$ = api.query.staking.validators.multi(addresses)
 
         return combineLatest([bonded$, validators$]).pipe(
           switchMap(([bondedEntries, validatorPrefs]) => {
-            // Filter to only accounts with stash and validator preferences
             const validatorStashes: string[] = []
             const stashToIndex = new Map<string, number>()
 
             bondedEntries.forEach((bonded, index) => {
               const address = addresses[index]
               const validatorPref = validatorPrefs[index]
-              // Only process validators (skip nominators)
               if (bonded.isSome && validatorPref && !validatorPref.isEmpty) {
                 validatorStashes.push(address)
                 stashToIndex.set(address, index)
@@ -115,7 +111,6 @@ export const useAllAccountsStakingRewards = (accounts: Account[]): Map<string, A
               return of(new Map<string, AccountStakingRewards>())
             }
 
-            // Get controllers for validators and create mapping
             const stashToController = new Map<string, string>()
             const controllers: string[] = []
 
@@ -131,7 +126,6 @@ export const useAllAccountsStakingRewards = (accounts: Account[]): Map<string, A
               }
             })
 
-            // Get ledgers for validators only
             const ledgers$ =
               controllers.length > 0
                 ? api.query.staking.ledger.multi(controllers).pipe(
@@ -143,7 +137,6 @@ export const useAllAccountsStakingRewards = (accounts: Account[]): Map<string, A
                           const ledgerData = ledger.unwrap()
                           const stash = ledgerData.stash.toString()
                           const claimedRewards = ledgerData.claimedRewards.map((era) => era.toNumber())
-                          // Save to localStorage
                           saveCachedClaimedEras(stash, claimedRewards)
                           ledgerMap.set(stash, { claimedRewards, controller })
                         }
@@ -156,7 +149,6 @@ export const useAllAccountsStakingRewards = (accounts: Account[]): Map<string, A
 
             return ledgers$.pipe(
               switchMap((ledgerMap) => {
-                // Load cached claimed eras for accounts not in ledgerMap (fallback)
                 validatorStashes.forEach((stash) => {
                   if (!ledgerMap.has(stash)) {
                     const cached = getCachedClaimedEras(stash)
@@ -166,7 +158,6 @@ export const useAllAccountsStakingRewards = (accounts: Account[]): Map<string, A
                   }
                 })
 
-                // Now fetch eras rewards and points (similar to polkadot-js/apps)
                 const erasRewards$ = api.derive.staking.erasRewards().pipe(catchError(() => of([])))
                 const erasPoints$ = api.derive.staking.erasPoints().pipe(catchError(() => of([])))
 
@@ -193,7 +184,6 @@ export const useAllAccountsStakingRewards = (accounts: Account[]): Map<string, A
                       const totalPoints = points.eraPoints.toNumber()
                       if (totalPoints === 0) return
 
-                      // Process each validator stash for this era
                       validatorStashes.forEach((address) => {
                         const validatorPoints = points.validators[address]
                         if (!validatorPoints) return
