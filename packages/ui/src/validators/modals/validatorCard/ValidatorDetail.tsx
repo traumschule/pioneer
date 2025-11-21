@@ -1,19 +1,24 @@
+import BN from 'bn.js'
 import React from 'react'
+import { combineLatest, first, map, of, switchMap } from 'rxjs'
 import styled from 'styled-components'
 
+import { useApi } from '@/api/hooks/useApi'
 import { ButtonPrimary } from '@/common/components/buttons'
 import { MarkdownPreview } from '@/common/components/MarkdownPreview'
 import { ModalFooter } from '@/common/components/Modal'
 import { RowGapBlock } from '@/common/components/page/PageContent'
 import { SidePaneBody, SidePaneLabel, SidePaneRow, SidePaneText } from '@/common/components/SidePane'
 import { NumericValueStat, StatisticsThreeColumns, TokenValueStat } from '@/common/components/statistics'
-import { TextSmall } from '@/common/components/typography'
+import { TextSmall, TokenValue } from '@/common/components/typography'
 import { BN_ZERO } from '@/common/constants'
 import { plural } from '@/common/helpers'
 import { useModal } from '@/common/hooks/useModal'
+import { useObservable } from '@/common/hooks/useObservable'
 import { whenDefined } from '@/common/utils'
 import RewardPointsChart from '@/validators/components/RewardPointChart'
 import { useSelectedValidators } from '@/validators/context/SelectedValidatorsContext'
+import { useMyStashPositions } from '@/validators/hooks/useMyStashPositions'
 
 import { ValidatorWithDetails } from '../../types'
 import { BondModalCall } from '../BondModal'
@@ -31,6 +36,8 @@ interface Props {
 }
 
 export const ValidatorDetail = ({ validator, eraIndex, hideModal, isNominated = false }: Props) => {
+  const { api } = useApi()
+  const stashPositions = useMyStashPositions()
   const { showModal } = useModal<NominatingRedirectModalCall>()
   const { showModal: showNominateModal } = useModal<NominateValidatorModalCall>()
   const { showModal: showStakeModal } = useModal<StakeModalCall>()
@@ -38,6 +45,41 @@ export const ValidatorDetail = ({ validator, eraIndex, hideModal, isNominated = 
   const { showModal: showUnbondModal } = useModal<UnbondModalCall>()
   const { showModal: showPayoutModal } = useModal<PayoutModalCall>()
   const { isSelected, toggleSelection, selectedValidators, maxSelection } = useSelectedValidators()
+
+  // Get stake amount for this nominated validator
+  const nominatedStake = useObservable<BN | undefined>(() => {
+    if (!api || !isNominated || !stashPositions) return of(undefined)
+
+    // Find stash positions that nominate this validator
+    const nominatingStashes = stashPositions.filter((pos) => pos.nominations.includes(validator.stashAccount))
+    if (nominatingStashes.length === 0) return of(undefined)
+
+    // Get current era and query exposures
+    return api.query.staking.activeEra().pipe(
+      first(),
+      switchMap((activeEra) => {
+        if (activeEra.isNone) return of(undefined)
+        const currentEra = activeEra.unwrap().index.toNumber()
+
+        // Query exposures for all nominating stashes
+        const exposureQueries = nominatingStashes.map((pos) =>
+          api.query.staking.erasStakers(currentEra, validator.stashAccount).pipe(
+            first(),
+            map((exposure) => {
+              if (!exposure || exposure.isEmpty) return BN_ZERO
+              const nominatorExposure = exposure.others.find((other) => other.who.toString() === pos.stash)
+              return nominatorExposure ? nominatorExposure.value.toBn() : BN_ZERO
+            })
+          )
+        )
+
+        return combineLatest(exposureQueries).pipe(
+          first(),
+          map((stakes) => stakes.reduce((sum, stake) => sum.add(stake), BN_ZERO))
+        )
+      })
+    )
+  }, [api?.isConnected, isNominated, validator.stashAccount, stashPositions])
 
   const uptime = whenDefined(validator.rewardPointsHistory, (rewardPointsHistory) => {
     const firstEra = rewardPointsHistory.at(0)?.era
@@ -154,13 +196,10 @@ export const ValidatorDetail = ({ validator, eraIndex, hideModal, isNominated = 
       <ModalFooter>
         <ActionButtonsContainer>
           {isNominated ? (
-            <ButtonPrimary
-              size="small"
-              onClick={() => handleActionClick('Nominate')}
-              title="Nominate this validator to receive rewards. You can change nominations each era without unbonding."
-            >
-              Nominate
-            </ButtonPrimary>
+            <div>
+              <TextSmall lighter>Nominated</TextSmall>
+              {nominatedStake && !nominatedStake.isZero() && <TokenValue size="xs" value={nominatedStake} />}
+            </div>
           ) : isValidatorSelected ? (
             <ButtonPrimary
               size="small"
