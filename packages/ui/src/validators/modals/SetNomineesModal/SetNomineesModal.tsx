@@ -1,22 +1,24 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { first, map, of } from 'rxjs'
+import React, { useMemo, useState } from 'react'
+import { combineLatest, first, map, of } from 'rxjs'
+import styled from 'styled-components'
 
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { encodeAddress } from '@/accounts/model/encodeAddress'
 import { useApi } from '@/api/hooks/useApi'
 import { ButtonSecondary } from '@/common/components/buttons'
 import { FailureModal } from '@/common/components/FailureModal'
-import { InputComponent, InputText } from '@/common/components/forms'
 import { Modal, ModalBody, ModalHeader, ModalTransactionFooter } from '@/common/components/Modal'
 import { RowGapBlock } from '@/common/components/page/PageContent'
+import { FilterTextSelect } from '@/common/components/selects'
 import { SuccessModal } from '@/common/components/SuccessModal'
 import { TextMedium, TextSmall } from '@/common/components/typography'
+import { Colors } from '@/common/constants'
 import { useMachine } from '@/common/hooks/useMachine'
 import { useModal } from '@/common/hooks/useModal'
 import { useObservable } from '@/common/hooks/useObservable'
 import { useSignAndSendTransaction } from '@/common/hooks/useSignAndSendTransaction'
 import { transactionMachine } from '@/common/model/machines'
-import { useStakingQueries, useStakingTransactions } from '@/validators/hooks/useStakingSDK'
+import { useStakingTransactions } from '@/validators/hooks/useStakingSDK'
 
 import { SetNomineesModalCall } from '.'
 
@@ -40,37 +42,70 @@ const SetNomineesModalInner = ({ stash, currentNominations }: SetNomineesModalIn
   const { api } = useApi()
   const { allAccounts } = useMyAccounts()
   const { nominate } = useStakingTransactions()
-  const { getValidators } = useStakingQueries()
   const [state, , service] = useMachine(transactionMachine)
 
   const [selectedValidators, setSelectedValidators] = useState<string[]>(currentNominations)
-  const [availableValidators, setAvailableValidators] = useState<Array<{ account: string; commission?: number }>>([])
-  const [validatorSearch, setValidatorSearch] = useState('')
-  const [isLoadingValidators, setIsLoadingValidators] = useState(true)
+  const [selectedValidatorToAdd, setSelectedValidatorToAdd] = useState<string | null>(null)
 
-  useEffect(() => {
-    const loadValidators = async () => {
-      try {
-        const validators = await getValidators()
-        setAvailableValidators(validators || [])
-      } catch {
-        setAvailableValidators([])
-      } finally {
-        setIsLoadingValidators(false)
-      }
-    }
-
-    loadValidators()
-  }, [])
-
-  const filteredValidators = useMemo(() => {
-    if (!validatorSearch.trim()) return availableValidators
-    const searchLower = validatorSearch.toLowerCase()
-    return availableValidators.filter(
-      (v) =>
-        v.account.toLowerCase().includes(searchLower) || encodeAddress(v.account).toLowerCase().includes(searchLower)
+  // Get all validators from the chain
+  const allValidators = useObservable(() => {
+    if (!api) return of([] as string[])
+    return api.query.session.validators().pipe(
+      map((validators) => validators.map((v) => v.toString())),
+      first()
     )
-  }, [availableValidators, validatorSearch])
+  }, [api?.isConnected])
+
+  // Get validator preferences (commission) for all validators
+  const validatorsWithDetails = useObservable(() => {
+    if (!api || !allValidators || allValidators.length === 0)
+      return of([] as Array<{ account: string; commission?: number }>)
+
+    return combineLatest(
+      allValidators.map((validator) =>
+        api.query.staking.validators(validator).pipe(
+          map((prefs: any) => {
+            if (prefs.isEmpty) return { account: validator, commission: undefined }
+            const prefsData = prefs.unwrap ? prefs.unwrap() : prefs
+            return {
+              account: validator,
+              commission: prefsData.commission ? prefsData.commission.toNumber() / 10_000_000 : undefined,
+            }
+          }),
+          first()
+        )
+      )
+    )
+  }, [api?.isConnected, allValidators])
+
+  const availableValidators = validatorsWithDetails || []
+  const isLoadingValidators = allValidators === undefined || validatorsWithDetails === undefined
+
+  // Get validator options for the select dropdown
+  const validatorOptions = useMemo(() => {
+    return availableValidators.map((v) => {
+      const address = encodeAddress(v.account)
+      const commission = v.commission !== undefined ? ` (${v.commission.toFixed(2)}%)` : ''
+      return `${address}${commission}`
+    })
+  }, [availableValidators])
+
+  // Handle adding a validator from the select
+  const handleAddValidator = (value: string | null) => {
+    if (!value) return
+    setSelectedValidatorToAdd(null)
+
+    // Extract the address from the option (format: "address (commission%)")
+    const addressMatch = value.match(/^(j4[a-zA-Z0-9]+)/)
+    if (!addressMatch) return
+
+    const validatorAddress = availableValidators.find((v) => encodeAddress(v.account) === addressMatch[1])?.account
+    if (!validatorAddress) return
+
+    if (!selectedValidators.includes(validatorAddress) && selectedValidators.length < 16) {
+      setSelectedValidators((prev) => [...prev, validatorAddress])
+    }
+  }
 
   const transaction = useMemo(() => {
     if (!api) return undefined
@@ -160,14 +195,16 @@ const SetNomineesModalInner = ({ stash, currentNominations }: SetNomineesModalIn
             validators.
           </TextMedium>
 
-          <InputComponent label="Search Validators" inputSize="l" id="validator-search">
-            <InputText
-              id="validator-search"
-              placeholder="Search by address..."
-              value={validatorSearch}
-              onChange={(e) => setValidatorSearch(e.target.value)}
-            />
-          </InputComponent>
+          <TextMedium>
+            <strong>Select Validator</strong>
+          </TextMedium>
+          <FilterTextSelect
+            options={validatorOptions}
+            value={selectedValidatorToAdd}
+            onChange={handleAddValidator}
+            emptyOption="Select a validator to add..."
+            selectSize="l"
+          />
 
           <div>
             <TextMedium>
@@ -180,63 +217,35 @@ const SetNomineesModalInner = ({ stash, currentNominations }: SetNomineesModalIn
             )}
           </div>
 
-          <div
-            style={{
-              maxHeight: '400px',
-              overflowY: 'auto',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-              padding: '8px',
-            }}
-          >
-            {isLoadingValidators ? (
-              <TextMedium>Loading validators...</TextMedium>
-            ) : filteredValidators.length === 0 ? (
-              <TextMedium>No validators found.</TextMedium>
-            ) : (
-              filteredValidators.map((validator) => {
-                const isSelected = selectedValidators.includes(validator.account)
-                const isCurrentlyNominated = currentNominations.includes(validator.account)
+          {selectedValidators.length > 0 && (
+            <SelectedValidatorsList>
+              <TextMedium>
+                <strong>All Selected Nominees:</strong>
+              </TextMedium>
+              {selectedValidators.map((validatorAddress) => {
+                const validator = availableValidators.find((v) => v.account === validatorAddress)
+                const isCurrentlyNominated = currentNominations.includes(validatorAddress)
                 return (
-                  <div
-                    key={validator.account}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: '12px',
-                      border: isSelected
-                        ? '2px solid #4CAF50'
-                        : isCurrentlyNominated
-                        ? '1px solid #2196F3'
-                        : '1px solid #ddd',
-                      margin: '4px 0',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      backgroundColor: isSelected ? '#f0f8f0' : isCurrentlyNominated ? '#e3f2fd' : 'white',
-                    }}
-                    onClick={() => handleValidatorToggle(validator.account)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => handleValidatorToggle(validator.account)}
-                      disabled={!isSelected && selectedValidators.length >= 16}
-                      style={{ marginRight: '12px', cursor: 'pointer' }}
-                    />
+                  <SelectedValidatorItem key={validatorAddress}>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <TextMedium>{encodeAddress(validator.account)}</TextMedium>
-                        {isCurrentlyNominated && !isSelected && (
+                        <TextMedium>{encodeAddress(validatorAddress)}</TextMedium>
+                        {isCurrentlyNominated && (
                           <TextSmall style={{ color: '#2196F3', fontWeight: 'bold' }}>(Currently Nominated)</TextSmall>
                         )}
                       </div>
-                      {validator.commission !== undefined && <TextSmall>Commission: {validator.commission}%</TextSmall>}
+                      {validator?.commission !== undefined && (
+                        <TextSmall>Commission: {validator.commission.toFixed(2)}%</TextSmall>
+                      )}
                     </div>
-                  </div>
+                    <RemoveButton size="small" onClick={() => handleValidatorToggle(validatorAddress)}>
+                      Remove
+                    </RemoveButton>
+                  </SelectedValidatorItem>
                 )
-              })
-            )}
-          </div>
+              })}
+            </SelectedValidatorsList>
+          )}
 
           {!canAfford && paymentInfo?.partialFee && (
             <TextSmall style={{ color: 'red' }}>
@@ -265,3 +274,26 @@ const SetNomineesModalInner = ({ stash, currentNominations }: SetNomineesModalIn
     </Modal>
   )
 }
+
+const SelectedValidatorsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid ${Colors.Black[200]};
+  border-radius: 4px;
+  background-color: ${Colors.Black[50]};
+`
+
+const SelectedValidatorItem = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  background-color: ${Colors.White};
+  border: 1px solid ${Colors.Black[200]};
+  border-radius: 4px;
+`
+
+const RemoveButton = styled(ButtonSecondary)`
+  margin-left: 8px;
+`

@@ -1,6 +1,6 @@
 import BN from 'bn.js'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { combineLatest, filter, first, map, of, switchMap, catchError } from 'rxjs'
+import { combineLatest, filter, first, map, of, switchMap, catchError, take } from 'rxjs'
 
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { Account } from '@/accounts/types'
@@ -41,6 +41,8 @@ export const ClaimStakingRewardsModal = () => {
   const [state, , service] = useMachine(transactionMachine)
   const [claimedEras, setClaimedEras] = useState<Set<string>>(new Set())
   const pendingBatchRef = useRef<number>(0)
+  const isProcessingBatchRef = useRef<boolean>(false)
+  const shouldAutoTriggerNextRef = useRef<boolean>(false)
 
   const validatorsRewards = useObservable<ValidatorClaimableRewards[] | undefined>(() => {
     if (!api || !allAccounts.length) return of(undefined)
@@ -207,8 +209,16 @@ export const ClaimStakingRewardsModal = () => {
     skipQueryNode: true,
   })
 
+  // Automatically trigger next batch after transaction is finalized
   useEffect(() => {
-    if (state.matches('success') && validatorsRewards && validatorsRewards.length > 0) {
+    if (
+      state.matches('success') &&
+      validatorsRewards &&
+      validatorsRewards.length > 0 &&
+      !isProcessingBatchRef.current &&
+      api
+    ) {
+      // Mark the current batch as claimed
       const currentBatch = validatorsRewards.flatMap((validator) =>
         validator.unclaimedEras
           .filter((era) => !claimedEras.has(`${validator.address}-${era}`))
@@ -223,17 +233,66 @@ export const ClaimStakingRewardsModal = () => {
           return newSet
         })
 
+        // Check if there are remaining eras to claim
         const remainingEras = validatorsRewards.flatMap((validator) =>
           validator.unclaimedEras.filter((era) => !claimedEras.has(`${validator.address}-${era}`))
         )
 
         if (remainingEras.length > 0) {
-          const timeout = setTimeout(() => {
-            pendingBatchRef.current += 1
-            service.send('SIGN')
-          }, 2000)
-          return () => clearTimeout(timeout)
+          isProcessingBatchRef.current = true
+
+          // Wait for the next block to be produced to ensure the previous transaction is finalized
+          const subscription = api.rpc.chain.subscribeNewHeads().pipe(take(1)).subscribe({
+            next: () => {
+              // Wait a bit more to ensure the block is finalized
+              setTimeout(() => {
+                pendingBatchRef.current += 1
+                isProcessingBatchRef.current = false
+                shouldAutoTriggerNextRef.current = true
+                // Restart the state machine to prepare for the next batch
+                service.stop()
+                service.start()
+              }, 1000)
+            },
+            error: () => {
+              isProcessingBatchRef.current = false
+            },
+          })
+
+          return () => {
+            subscription.unsubscribe()
+          }
+        } else {
+          isProcessingBatchRef.current = false
         }
+      }
+    } else if (!state.matches('success')) {
+      // Reset the processing flag when not in success state
+      isProcessingBatchRef.current = false
+    }
+  }, [state.value, validatorsRewards, claimedEras, service, api])
+
+  // Auto-trigger next batch when machine is reset and ready
+  useEffect(() => {
+    if (
+      state.matches('prepare') &&
+      validatorsRewards &&
+      validatorsRewards.length > 0 &&
+      !isProcessingBatchRef.current &&
+      shouldAutoTriggerNextRef.current
+    ) {
+      const remainingEras = validatorsRewards.flatMap((validator) =>
+        validator.unclaimedEras.filter((era) => !claimedEras.has(`${validator.address}-${era}`))
+      )
+
+      if (remainingEras.length > 0) {
+        shouldAutoTriggerNextRef.current = false
+        // Automatically trigger the next batch
+        setTimeout(() => {
+          service.send('SIGN')
+        }, 100)
+      } else {
+        shouldAutoTriggerNextRef.current = false
       }
     }
   }, [state.value, validatorsRewards, claimedEras, service])
@@ -336,8 +395,9 @@ export const ClaimStakingRewardsModal = () => {
             </TextMedium>
             {hasMoreThanLimit && (
               <TextMedium lighter>
-                ℹ️ Due to transaction limits, this will claim {totals.batchedEras} of {totals.totalEras} unclaimed eras.
-                Run this action again to claim the remaining eras.
+                ℹ️ This will automatically claim all {totals.totalEras} unclaimed eras across multiple transactions.
+                The first batch will claim {totals.batchedEras} eras, and the remaining eras will be claimed
+                automatically in subsequent batches.
               </TextMedium>
             )}
             {!canAfford && <TextMedium lighter>⚠️ Insufficient balance to cover transaction fee.</TextMedium>}

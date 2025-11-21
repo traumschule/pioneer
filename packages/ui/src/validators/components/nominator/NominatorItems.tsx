@@ -18,7 +18,16 @@ import { WatchIcon } from '@/common/components/icons/WatchIcon'
 import { TableListItemAsLinkHover } from '@/common/components/List'
 import { Tooltip, TooltipPopupTitle, TooltipText } from '@/common/components/Tooltip'
 import { TextMedium, TextSmall, TokenValue } from '@/common/components/typography'
-import { BorderRad, Colors, Sizes, Transitions, BN_ZERO, ERAS_PER_DAY, ZIndex } from '@/common/constants'
+import {
+  BorderRad,
+  Colors,
+  Sizes,
+  Transitions,
+  BN_ZERO,
+  ERAS_PER_DAY,
+  ZIndex,
+  JOY_DECIMAL_PLACES,
+} from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
 import { useObservable } from '@/common/hooks/useObservable'
 import { shortenAddress } from '@/common/model/formatters'
@@ -36,6 +45,32 @@ interface Props {
   validatorDetails?: ValidatorWithDetails
   totalStaked: BN
   totalClaimable: BN
+}
+
+// Helper function to abbreviate token amounts (e.g., 500k, 2.3M)
+const abbreviateTokenAmount = (value: BN): string => {
+  if (value.isZero()) return '0'
+
+  // Convert to JOY (divide by 10^JOY_DECIMAL_PLACES)
+  const joyValue = value.divn(Math.pow(10, JOY_DECIMAL_PLACES)).toNumber()
+  const absValue = Math.abs(joyValue)
+
+  if (absValue >= 1_000_000_000) {
+    // Billions
+    const billions = joyValue / 1_000_000_000
+    return `${billions.toFixed(1)}B`
+  } else if (absValue >= 1_000_000) {
+    // Millions
+    const millions = joyValue / 1_000_000
+    return `${millions.toFixed(1)}M`
+  } else if (absValue >= 1_000) {
+    // Thousands
+    const thousands = joyValue / 1_000
+    return `${thousands.toFixed(0)}k`
+  } else {
+    // Less than 1000, show with 1 decimal place
+    return joyValue.toFixed(1)
+  }
 }
 
 export const NorminatorDashboardItem = ({
@@ -443,33 +478,32 @@ export const NorminatorDashboardItem = ({
         <StakeCell>
           <StakeInfo>
             <StakeRow>
-              {getUnbondingTimeInfo.hasUnbonding && !getUnbondingTimeInfo.isRecoverable && unbondingTooltipText && (
-                <Tooltip popupContent={unbondingTooltipText}>
-                  <UnbondingClockIcon>
-                    <WatchIcon />
-                  </UnbondingClockIcon>
-                </Tooltip>
-              )}
-              {getUnbondingTimeInfo.hasUnbonding && getUnbondingTimeInfo.isRecoverable && (
-                <RecoverableButton
-                  size="small"
-                  square
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    openManageActionModal('withdraw')
-                  }}
-                  title="Recoverable - click to withdraw"
-                >
-                  <LockSymbol />
-                </RecoverableButton>
-              )}
               <TokenValue value={position.activeStake} />
             </StakeRow>
             {unlockingTotal.gt(BN_ZERO) && (
               <StakeRow>
-                <TextSmall lighter>
-                  Unbonding: <TokenValue value={unlockingTotal} />
-                </TextSmall>
+                {getUnbondingTimeInfo.hasUnbonding && !getUnbondingTimeInfo.isRecoverable && unbondingTooltipText && (
+                  <Tooltip popupContent={unbondingTooltipText}>
+                    <UnbondingClockIcon>
+                      <WatchIcon />
+                    </UnbondingClockIcon>
+                  </Tooltip>
+                )}
+                {getUnbondingTimeInfo.hasUnbonding && getUnbondingTimeInfo.isRecoverable && (
+                  <RecoverableButton
+                    size="small"
+                    square
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openManageActionModal('withdraw')
+                    }}
+                    title="Recoverable - click to withdraw"
+                  >
+                    <LockSymbol />
+                  </RecoverableButton>
+                )}
+                <TokenValue value={unlockingTotal} />
+                <TextSmall lighter>Unbonding:</TextSmall>
               </StakeRow>
             )}
           </StakeInfo>
@@ -494,9 +528,7 @@ export const NorminatorDashboardItem = ({
                                 <TooltipRow key={nom.address}>
                                   <TooltipText>{shortenAddress(encodeAddress(nom.address), 20)}</TooltipText>
                                   {nom.stake !== undefined && (
-                                    <TooltipText>
-                                      <TokenValue value={nom.stake} />
-                                    </TooltipText>
+                                    <TooltipText>{abbreviateTokenAmount(nom.stake)}</TooltipText>
                                   )}
                                 </TooltipRow>
                               ))}
