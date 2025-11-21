@@ -30,6 +30,7 @@ import {
 } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
 import { useObservable } from '@/common/hooks/useObservable'
+import { error } from '@/common/logger'
 import { shortenAddress } from '@/common/model/formatters'
 import { MyStashPosition } from '@/validators/hooks/useMyStashPositions'
 import { ChangeSessionKeysModalCall } from '@/validators/modals/ChangeSessionKeysModal'
@@ -49,22 +50,30 @@ interface Props {
 
 // Helper function to abbreviate token amounts (e.g., 500k, 2.3M)
 const abbreviateTokenAmount = (value: BN | undefined): string => {
-  if (!value || value.isZero()) return '0'
+  try {
+    if (!value || value.isZero()) return '0'
 
-  const joyValue = value.divn(Math.pow(10, JOY_DECIMAL_PLACES)).toNumber()
-  const absValue = Math.abs(joyValue)
+    const joyValue = value.divn(Math.pow(10, JOY_DECIMAL_PLACES)).toNumber()
+    const absValue = Math.abs(joyValue)
 
-  if (absValue >= 1_000_000_000) {
-    const billions = joyValue / 1_000_000_000
-    return `${billions.toFixed(1)}B`
-  } else if (absValue >= 1_000_000) {
-    const millions = joyValue / 1_000_000
-    return `${millions.toFixed(1)}M`
-  } else if (absValue >= 1_000) {
-    const thousands = joyValue / 1_000
-    return `${thousands.toFixed(0)}k`
-  } else {
-    return joyValue.toFixed(1)
+    if (absValue >= 1_000_000_000) {
+      const billions = joyValue / 1_000_000_000
+      return `${billions.toFixed(1)}B`
+    } else if (absValue >= 1_000_000) {
+      const millions = joyValue / 1_000_000
+      return `${millions.toFixed(1)}M`
+    } else if (absValue >= 1_000) {
+      const thousands = joyValue / 1_000
+      return `${thousands.toFixed(0)}k`
+    } else {
+      return joyValue.toFixed(1)
+    }
+  } catch (err) {
+    error('Error in abbreviateTokenAmount:', err)
+    error('Value:', value)
+    error('Value type:', typeof value)
+    error('Value constructor:', value?.constructor?.name)
+    return '0'
   }
 }
 
@@ -519,14 +528,26 @@ export const NorminatorDashboardItem = ({
                             </TooltipPopupTitle>
                             {nominationsInfo
                               .filter((n) => n.isActive)
-                              .map((nom) => (
-                                <TooltipRow key={nom.address}>
-                                  <TooltipText>{shortenAddress(encodeAddress(nom.address), 20)}</TooltipText>
-                                  {nom.stake && !nom.stake.isZero() && (
-                                    <TooltipText>{abbreviateTokenAmount(nom.stake)}</TooltipText>
-                                  )}
-                                </TooltipRow>
-                              ))}
+                              .map((nom) => {
+                                try {
+                                  if (!nom || !nom.address) {
+                                    error('Invalid nom object:', nom)
+                                    return null
+                                  }
+                                  return (
+                                    <TooltipRow key={nom.address}>
+                                      <TooltipText>{shortenAddress(encodeAddress(nom.address), 20)}</TooltipText>
+                                      {nom.stake && !nom.stake.isZero() && (
+                                        <TooltipText>{abbreviateTokenAmount(nom.stake)}</TooltipText>
+                                      )}
+                                    </TooltipRow>
+                                  )
+                                } catch (err) {
+                                  error('Error rendering nomination:', err)
+                                  error('Nom object:', nom)
+                                  return null
+                                }
+                              })}
                           </TooltipSection>
                           {nominationsInfo.some((n) => !n.isActive) && <TooltipDivider />}
                         </>
