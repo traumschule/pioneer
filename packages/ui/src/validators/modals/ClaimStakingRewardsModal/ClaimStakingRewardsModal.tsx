@@ -1,3 +1,4 @@
+import type { u32 } from '@polkadot/types'
 import BN from 'bn.js'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { combineLatest, filter, first, map, of, switchMap, catchError, take } from 'rxjs'
@@ -154,39 +155,72 @@ export const ClaimStakingRewardsModal = () => {
     )
   }, [api?.isConnected, JSON.stringify(allAccounts.map((a) => a.address))])
 
+  // Calculate maximum batch size based on block limits (following PayButton.tsx pattern)
+  const maxBatchSize = useMemo(() => {
+    if (!api) return 5 // Fallback to 5 if API not available
+    try {
+      const maxNominatorRewarded = (api.consts.staking.maxNominatorRewardedPerValidator as u32)?.toNumber() || 64
+      // Calculate max payouts per batch: 36 * 64 / maxNominatorRewardedPerValidator
+      // This fills the block with maximum amount of eras
+      const calculatedMax = Math.floor((36 * 64) / maxNominatorRewarded)
+      return Math.max(1, calculatedMax) // Ensure at least 1
+    } catch {
+      return 5 // Fallback if calculation fails
+    }
+  }, [api])
+
   const totals = useMemo(() => {
-    if (!validatorsRewards) return { totalClaimable: BN_ZERO, totalEras: 0, accountsCount: 0, batchedEras: 0 }
+    if (!validatorsRewards)
+      return {
+        totalClaimable: BN_ZERO,
+        totalEras: 0,
+        accountsCount: 0,
+        batchedEras: 0,
+        allPayouts: [] as Array<{ validatorAddress: string; era: number }>,
+      }
 
     const totalClaimable = validatorsRewards.reduce((sum, v) => sum.add(v.totalClaimable), BN_ZERO)
-    const totalEras = validatorsRewards.reduce((sum, v) => sum + v.unclaimedEras.length, 0)
 
-    const batchedEras = Math.min(totalEras, 5)
+    // Create sorted list of all unclaimed payouts (validator + era pairs)
+    const allPayouts: Array<{ validatorAddress: string; era: number }> = []
+    validatorsRewards.forEach((validator) => {
+      validator.unclaimedEras.forEach((era) => {
+        if (!claimedEras.has(`${validator.address}-${era}`)) {
+          allPayouts.push({ validatorAddress: validator.address, era })
+        }
+      })
+    })
+
+    // Sort by era (ascending) to claim oldest first
+    allPayouts.sort((a, b) => a.era - b.era)
+
+    const batchedEras = Math.min(allPayouts.length, maxBatchSize)
 
     return {
       totalClaimable,
-      totalEras,
+      totalEras: allPayouts.length,
       batchedEras,
       accountsCount: validatorsRewards.length,
+      allPayouts, // Store sorted payouts for transaction creation
     }
-  }, [validatorsRewards])
+  }, [validatorsRewards, claimedEras, maxBatchSize])
 
   const transaction = useMemo(() => {
-    if (!api || !validatorsRewards || validatorsRewards.length === 0) return undefined
+    if (!api || !totals.allPayouts || totals.allPayouts.length === 0) return undefined
 
-    const unclaimedPayoutCalls = validatorsRewards.flatMap((validator) =>
-      validator.unclaimedEras
-        .filter((era) => !claimedEras.has(`${validator.address}-${era}`))
-        .map((era: number) => api.tx.staking.payoutStakers(validator.address, era))
+    // Get the next batch of payouts (sorted by era, oldest first)
+    const nextBatch = totals.allPayouts.slice(0, maxBatchSize)
+
+    const payoutCalls = nextBatch.map(({ validatorAddress, era }) =>
+      api.tx.staking.payoutStakers(validatorAddress, era)
     )
 
-    const limitedCalls = unclaimedPayoutCalls.slice(0, 5)
-
-    return limitedCalls.length === 0
+    return payoutCalls.length === 0
       ? undefined
-      : limitedCalls.length === 1
-      ? limitedCalls[0]
-      : api.tx.utility.batchAll(limitedCalls)
-  }, [api, validatorsRewards, claimedEras])
+      : payoutCalls.length === 1
+      ? payoutCalls[0]
+      : api.tx.utility.batchAll(payoutCalls)
+  }, [api, totals.allPayouts, maxBatchSize])
 
   const signerAccount = useMemo(() => {
     if (!validatorsRewards || validatorsRewards.length === 0) {
@@ -219,12 +253,9 @@ export const ClaimStakingRewardsModal = () => {
       api
     ) {
       // Mark the current batch as claimed
-      const currentBatch = validatorsRewards.flatMap((validator) =>
-        validator.unclaimedEras
-          .filter((era) => !claimedEras.has(`${validator.address}-${era}`))
-          .slice(0, 5)
-          .map((era) => `${validator.address}-${era}`)
-      )
+      const currentBatch = totals.allPayouts
+        ? totals.allPayouts.slice(0, maxBatchSize).map(({ validatorAddress, era }) => `${validatorAddress}-${era}`)
+        : []
 
       if (currentBatch.length > 0) {
         setClaimedEras((prev) => {
@@ -234,30 +265,31 @@ export const ClaimStakingRewardsModal = () => {
         })
 
         // Check if there are remaining eras to claim
-        const remainingEras = validatorsRewards.flatMap((validator) =>
-          validator.unclaimedEras.filter((era) => !claimedEras.has(`${validator.address}-${era}`))
-        )
+        const remainingEras = totals.allPayouts ? totals.allPayouts.slice(maxBatchSize) : []
 
         if (remainingEras.length > 0) {
           isProcessingBatchRef.current = true
 
           // Wait for the next block to be produced to ensure the previous transaction is finalized
-          const subscription = api.rpc.chain.subscribeNewHeads().pipe(take(1)).subscribe({
-            next: () => {
-              // Wait a bit more to ensure the block is finalized
-              setTimeout(() => {
-                pendingBatchRef.current += 1
+          const subscription = api.rpc.chain
+            .subscribeNewHeads()
+            .pipe(take(1))
+            .subscribe({
+              next: () => {
+                // Wait a bit more to ensure the block is finalized
+                setTimeout(() => {
+                  pendingBatchRef.current += 1
+                  isProcessingBatchRef.current = false
+                  shouldAutoTriggerNextRef.current = true
+                  // Restart the state machine to prepare for the next batch
+                  service.stop()
+                  service.start()
+                }, 1000)
+              },
+              error: () => {
                 isProcessingBatchRef.current = false
-                shouldAutoTriggerNextRef.current = true
-                // Restart the state machine to prepare for the next batch
-                service.stop()
-                service.start()
-              }, 1000)
-            },
-            error: () => {
-              isProcessingBatchRef.current = false
-            },
-          })
+              },
+            })
 
           return () => {
             subscription.unsubscribe()
@@ -270,7 +302,7 @@ export const ClaimStakingRewardsModal = () => {
       // Reset the processing flag when not in success state
       isProcessingBatchRef.current = false
     }
-  }, [state.value, validatorsRewards, claimedEras, service, api])
+  }, [state.value, validatorsRewards, claimedEras, service, api, totals.allPayouts, maxBatchSize])
 
   // Auto-trigger next batch when machine is reset and ready
   useEffect(() => {
@@ -281,9 +313,7 @@ export const ClaimStakingRewardsModal = () => {
       !isProcessingBatchRef.current &&
       shouldAutoTriggerNextRef.current
     ) {
-      const remainingEras = validatorsRewards.flatMap((validator) =>
-        validator.unclaimedEras.filter((era) => !claimedEras.has(`${validator.address}-${era}`))
-      )
+      const remainingEras = totals.allPayouts ? totals.allPayouts.slice(maxBatchSize) : []
 
       if (remainingEras.length > 0) {
         shouldAutoTriggerNextRef.current = false
@@ -295,7 +325,7 @@ export const ClaimStakingRewardsModal = () => {
         shouldAutoTriggerNextRef.current = false
       }
     }
-  }, [state.value, validatorsRewards, claimedEras, service])
+  }, [state.value, validatorsRewards, claimedEras, service, totals.allPayouts, maxBatchSize])
 
   if (state.matches('canceled')) {
     return (
@@ -343,11 +373,7 @@ export const ClaimStakingRewardsModal = () => {
   }
 
   if (state.matches('success')) {
-    const remainingEras = validatorsRewards
-      ? validatorsRewards.flatMap((validator) =>
-          validator.unclaimedEras.filter((era) => !claimedEras.has(`${validator.address}-${era}`))
-        )
-      : []
+    const remainingEras = totals.allPayouts ? totals.allPayouts.slice(maxBatchSize) : []
 
     if (remainingEras.length > 0) {
       return (
@@ -396,8 +422,8 @@ export const ClaimStakingRewardsModal = () => {
             {hasMoreThanLimit && (
               <TextMedium lighter>
                 ℹ️ This will automatically claim all {totals.totalEras} unclaimed eras across multiple transactions.
-                The first batch will claim {totals.batchedEras} eras, and the remaining eras will be claimed
-                automatically in subsequent batches.
+                Each batch will claim up to {maxBatchSize} eras (filling the block), and remaining eras will be claimed
+                automatically in subsequent batches without requiring confirmation.
               </TextMedium>
             )}
             {!canAfford && <TextMedium lighter>⚠️ Insufficient balance to cover transaction fee.</TextMedium>}

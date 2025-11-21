@@ -25,7 +25,6 @@ const generatePlaceholderLabels = (timeRange: ChartTimeRange): string[] => {
   } else if (timeRange === 'week') {
     return Array.from({ length: 7 }, (_, i) => `Day ${i + 1}`)
   } else {
-    // 120 eras = 30 days, show each week (4 weeks)
     return Array.from({ length: 4 }, (_, i) => `Week ${i + 1}`)
   }
 }
@@ -47,7 +46,6 @@ export const useMyStakingChartData = (timeRange: ChartTimeRange = 'month'): Stak
   const previousDataRef = useRef<StakingChartData | null>(null)
   const chartData = useObservable<StakingChartData>((): Observable<StakingChartData> => {
     const emptyData = createEmptyChartData(timeRange)
-    // Directly reference stashPositions in the observable factory so useObservable can track it
     if (!api || !allAccounts.length || !stashPositions || stashPositions.length === 0) {
       return of(previousDataRef.current || emptyData).pipe(startWith(previousDataRef.current || emptyData))
     }
@@ -83,19 +81,12 @@ export const useMyStakingChartData = (timeRange: ChartTimeRange = 'month'): Stak
           return of(fallback)
         }
 
-        // Calculate total stake inside the observable chain to ensure we use latest stashPositions
-        // Calculate total stake exactly as NominatorItems.tsx does (lines 185-188, 376-414)
-        // Stake column shows: activeStake (bonded) + unlockingTotal (unbonding)
-        // Directly reference stashPositions from closure to get latest values
         const currentTotalStake = stashPositions.reduce((sum, position) => {
-          // Calculate unlockingTotal exactly as in NominatorItems.tsx line 185-188
           const unlockingTotal = position.unlocking.reduce((unlockSum, chunk) => unlockSum.add(chunk.value), BN_ZERO)
-          // Total stake = activeStake + unlockingTotal (matching Stake column display)
           const totalStake = position.activeStake.add(unlockingTotal)
           return sum.add(totalStake)
         }, BN_ZERO)
 
-        // Create a map of stash addresses to their nominations for reward calculation
         const stashToNominations = new Map<string, string[]>()
         stashPositions.forEach((position) => {
           if (position.role === 'nominator' && position.nominations.length > 0) {
@@ -114,8 +105,6 @@ export const useMyStakingChartData = (timeRange: ChartTimeRange = 'month'): Stak
             const rewardsByEra = new Map(erasRewards.map((reward: any) => [reward.era.toNumber(), reward]))
             const pointsByEra = new Map(erasPoints.map((points: any) => [points.era.toNumber(), points]))
 
-            // Use current total stake for all eras (matches Stake column sum from NominatorItems.tsx)
-            // Historical stake per era would require querying ledger at each era's block hash (very slow)
             const eraStakes$ = of(
               eras.map((era) => ({
                 era,
@@ -125,26 +114,42 @@ export const useMyStakingChartData = (timeRange: ChartTimeRange = 'month'): Stak
 
             const eraSlashes$ = combineLatest(
               eras.map((era) =>
-                combineLatest(
-                  addresses.map((address) =>
-                    api.query.staking.validatorSlashInEra(era, address).pipe(
-                      catchError(() => of(null)),
-                      map((slash: any) => ({
-                        era,
-                        slashed: !slash || slash.isNone ? BN_ZERO : slash.unwrap()[1].toBn(),
-                      }))
+                combineLatest([
+                  combineLatest(
+                    addresses.map((address) =>
+                      api.query.staking.validatorSlashInEra(era, address).pipe(
+                        catchError(() => of(null)),
+                        map((slash: any) => ({
+                          era,
+                          slashed: !slash || slash.isNone ? BN_ZERO : slash.unwrap()[1].toBn(),
+                        }))
+                      )
                     )
-                  )
-                ).pipe(
-                  map((slashes: any[]) => ({
-                    era,
-                    totalSlashed: slashes.reduce((sum, s) => sum.add(s.slashed), BN_ZERO),
-                  }))
+                  ),
+                  combineLatest(
+                    addresses.map((address) =>
+                      api.query.staking.nominatorSlashInEra(era, address).pipe(
+                        catchError(() => of(null)),
+                        map((slash: any) => ({
+                          era,
+                          slashed: !slash || slash.isNone ? BN_ZERO : slash.unwrap().toBn(),
+                        }))
+                      )
+                    )
+                  ),
+                ]).pipe(
+                  map(([validatorSlashes, nominatorSlashes]: [any[], any[]]) => {
+                    const totalValidatorSlashed = validatorSlashes.reduce((sum, s) => sum.add(s.slashed), BN_ZERO)
+                    const totalNominatorSlashed = nominatorSlashes.reduce((sum, s) => sum.add(s.slashed), BN_ZERO)
+                    return {
+                      era,
+                      totalSlashed: totalValidatorSlashed.add(totalNominatorSlashed),
+                    }
+                  })
                 )
               )
             ).pipe(catchError(() => of([])))
 
-            // Calculate rewards for each era including nominator rewards
             const eraRewards$ = combineLatest(
               eras.map((era) => {
                 const reward = rewardsByEra.get(era)
@@ -154,7 +159,6 @@ export const useMyStakingChartData = (timeRange: ChartTimeRange = 'month'): Stak
                 if (reward && points && reward.eraReward && !reward.eraReward.isZero()) {
                   const totalPoints = points.eraPoints.toNumber()
                   if (totalPoints > 0) {
-                    // Calculate validator rewards
                     addresses.forEach((address) => {
                       const validatorPoints = points.validators?.[address]
                       if (validatorPoints) {
@@ -164,7 +168,6 @@ export const useMyStakingChartData = (timeRange: ChartTimeRange = 'month'): Stak
                       }
                     })
 
-                    // Calculate nominator rewards - query exposures for this era
                     const nominatorRewardQueries: Observable<BN>[] = []
                     stashToNominations.forEach((nominations, stashAddress) => {
                       nominations.forEach((validatorAddress) => {
@@ -267,14 +270,11 @@ export const useMyStakingChartData = (timeRange: ChartTimeRange = 'month'): Stak
                   labels.push(label)
                   rewardData.push(data.rewards.reduce((sum, val) => sum + val, 0))
                   barData.push(data.slashes.reduce((sum, val) => sum + val, 0))
-                  // Stake value is the same for all eras (current total stake), so just use the first one
-                  // This matches the sum of Stake column from NominatorItems.tsx
                   const stakeValue = data.stakes.length > 0 ? data.stakes[0] : 0
                   stakeData.push(stakeValue)
                 })
 
                 if (labels.length === 0) {
-                  // Return previous data if available when current data is empty
                   return previousDataRef.current || emptyData
                 }
 
@@ -285,7 +285,6 @@ export const useMyStakingChartData = (timeRange: ChartTimeRange = 'month'): Stak
                   barData,
                 }
 
-                // Store valid data for future use
                 previousDataRef.current = chartDataResult
                 return chartDataResult
               }),
@@ -307,7 +306,6 @@ export const useMyStakingChartData = (timeRange: ChartTimeRange = 'month'): Stak
       })
     )
 
-    // Don't use previous data when stashPositions changes - always calculate fresh
     return dataObservable.pipe(
       map((data: any): StakingChartData => {
         if (
@@ -329,7 +327,6 @@ export const useMyStakingChartData = (timeRange: ChartTimeRange = 'month'): Stak
           stakeData: data.stakeData,
           barData: data.barData,
         }
-        // Store valid data for future use
         const hasValidData =
           chartData.labels.length > 0 &&
           (chartData.rewardData.some((val: number) => val > 0) || chartData.stakeData.some((val: number) => val > 0))

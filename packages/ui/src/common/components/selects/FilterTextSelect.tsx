@@ -4,7 +4,8 @@ import { SimpleSelect, SimpleSelectSizingProps } from '.'
 import { DefaultSelectProps, OptionNode } from './types'
 
 export const FilterTextSelect = (
-  props: DefaultSelectProps<string, string | null> & SimpleSelectSizingProps & { emptyOption?: OptionNode }
+  props: DefaultSelectProps<string, string | null> &
+    SimpleSelectSizingProps & { emptyOption?: OptionNode; placeholder?: string }
 ) => {
   const [search, setSearch] = useState('')
   const options = useMemo(() => {
@@ -15,7 +16,7 @@ export const FilterTextSelect = (
     search && setSearch('')
   }, [props.value])
 
-  const { selectSize, emptyOption, ...restProps } = props
+  const { selectSize, emptyOption, placeholder = 'Search...', ...restProps } = props
   return (
     <SimpleSelect
       {...restProps}
@@ -23,6 +24,7 @@ export const FilterTextSelect = (
       onSearch={setSearch}
       selectSize={selectSize}
       emptyOption={emptyOption}
+      placeholder={placeholder}
     />
   )
 }

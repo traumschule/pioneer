@@ -1,5 +1,5 @@
 import BN from 'bn.js'
-import React from 'react'
+import React, { useMemo } from 'react'
 import { combineLatest, first, map, of, switchMap } from 'rxjs'
 import styled from 'styled-components'
 
@@ -9,11 +9,13 @@ import { BadgeStatus } from '@/common/components/BadgeStatus'
 import { ButtonPrimary } from '@/common/components/buttons'
 import { TableListItemAsLinkHover } from '@/common/components/List'
 import { Skeleton } from '@/common/components/Skeleton'
-import { TextMedium, TokenValue } from '@/common/components/typography'
+import { Tooltip, TooltipPopupTitle, TooltipText } from '@/common/components/Tooltip'
+import { TextMedium, TextSmall, TokenValue } from '@/common/components/typography'
 import { BorderRad, Colors, Sizes, Transitions, BN_ZERO } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
 import { useObservable } from '@/common/hooks/useObservable'
 import { whenDefined } from '@/common/utils'
+import { shortenAddress } from '@/common/model/formatters'
 import { useMyStashPositions } from '@/validators/hooks/useMyStashPositions'
 import { BondModalCall } from '@/validators/modals/BondModal'
 import { NominatingRedirectModalCall } from '@/validators/modals/NominatingRedirectModal'
@@ -46,8 +48,8 @@ export const ValidatorItem = ({ validator, onClick, isNominated = false }: Valid
   const { isSelected, toggleSelection, selectedValidators, maxSelection } = useSelectedValidators()
   // const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
-  // Get stake amount for this nominated validator
-  const nominatedStake = useObservable<BN | undefined>(() => {
+  // Get stake amounts and stash info for this nominated validator
+  const nominatedStakesInfo = useObservable<Array<{ stash: string; stake: BN }> | undefined>(() => {
     if (!api || !isNominated || !stashPositions) return of(undefined)
 
     // Find stash positions that nominate this validator
@@ -66,20 +68,28 @@ export const ValidatorItem = ({ validator, onClick, isNominated = false }: Valid
           api.query.staking.erasStakers(currentEra, stashAccount).pipe(
             first(),
             map((exposure) => {
-              if (!exposure || exposure.isEmpty) return BN_ZERO
+              if (!exposure || exposure.isEmpty) return { stash: pos.stash, stake: BN_ZERO }
               const nominatorExposure = exposure.others.find((other) => other.who.toString() === pos.stash)
-              return nominatorExposure ? nominatorExposure.value.toBn() : BN_ZERO
+              return {
+                stash: pos.stash,
+                stake: nominatorExposure ? nominatorExposure.value.toBn() : BN_ZERO,
+              }
             })
           )
         )
 
         return combineLatest(exposureQueries).pipe(
           first(),
-          map((stakes) => stakes.reduce((sum, stake) => sum.add(stake), BN_ZERO))
+          map((stakesInfo) => stakesInfo.filter((info) => !info.stake.isZero()))
         )
       })
     )
   }, [api?.isConnected, isNominated, stashAccount, stashPositions])
+
+  const nominatedStake = useMemo(() => {
+    if (!nominatedStakesInfo || nominatedStakesInfo.length === 0) return undefined
+    return nominatedStakesInfo.reduce((sum, info) => sum.add(info.stake), BN_ZERO)
+  }, [nominatedStakesInfo])
 
   const handleActionClick = (e: React.MouseEvent, action: string) => {
     e.stopPropagation()
@@ -124,10 +134,31 @@ export const ValidatorItem = ({ validator, onClick, isNominated = false }: Valid
         <TextMedium bold>{commission}%</TextMedium>
         <ActionButtons>
           {isNominated ? (
-            <div>
+            <NominatedInfo>
               <TextMedium lighter>Nominated</TextMedium>
               {nominatedStake && !nominatedStake.isZero() && <TokenValue size="xs" value={nominatedStake} />}
-            </div>
+              {nominatedStakesInfo && nominatedStakesInfo.length > 1 && (
+                <Tooltip
+                  popupContent={
+                    <NominatorsTooltipContent>
+                      <TooltipPopupTitle>
+                        Nominated by {nominatedStakesInfo.length} stashes:
+                      </TooltipPopupTitle>
+                      {nominatedStakesInfo.map((info) => (
+                        <TooltipRow key={info.stash}>
+                          <TooltipText>{shortenAddress(encodeAddress(info.stash), 20)}</TooltipText>
+                          <TooltipText>
+                            <TokenValue size="xs" value={info.stake} />
+                          </TooltipText>
+                        </TooltipRow>
+                      ))}
+                    </NominatorsTooltipContent>
+                  }
+                >
+                  <HandIcon>👋</HandIcon>
+                </Tooltip>
+              )}
+            </NominatedInfo>
           ) : isValidatorSelected ? (
             <ButtonPrimary
               size="small"
@@ -195,4 +226,31 @@ const ActionButtons = styled.div`
   align-items: center;
   width: 100%;
   min-height: 40px;
+`
+
+const NominatedInfo = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const HandIcon = styled.span`
+  cursor: help;
+  font-size: 16px;
+  line-height: 1;
+  margin-left: 4px;
+`
+
+const NominatorsTooltipContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 300px;
+`
+
+const TooltipRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 `

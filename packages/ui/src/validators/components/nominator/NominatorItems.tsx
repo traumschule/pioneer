@@ -533,7 +533,9 @@ export const NorminatorDashboardItem = ({
             <Tooltip
               popupContent={
                 <NominationsTooltipContent>
-                  {nominationsInfo && nominationsInfo.length > 0 && (
+                  {nominationsInfo === undefined ? (
+                    <TextSmall lighter>Loading...</TextSmall>
+                  ) : nominationsInfo && nominationsInfo.length > 0 ? (
                     <>
                       {nominationsInfo.some((n) => n.isActive) && (
                         <>
@@ -604,14 +606,20 @@ export const NorminatorDashboardItem = ({
                         </TooltipSection>
                       )}
                     </>
+                  ) : (
+                    <TextSmall lighter>No nominations info available</TextSmall>
                   )}
                 </NominationsTooltipContent>
               }
             >
               <NominationsIndicator>
-                <TextMedium>
-                  {activeNominationsCount} / {position.nominations.length}
-                </TextMedium>
+                {nominationsInfo === undefined ? (
+                  <TextSmall lighter>Loading...</TextSmall>
+                ) : (
+                  <TextMedium>
+                    {activeNominationsCount} / {position.nominations.length}
+                  </TextMedium>
+                )}
                 <ButtonForTransfer
                   size="small"
                   square

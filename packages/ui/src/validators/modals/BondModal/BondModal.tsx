@@ -254,8 +254,10 @@ export const BondModal = () => {
               selected={allAccounts.find((acc) => acc.address === controller)}
               placeholder="Select controller account"
               filter={(account) => {
-                if (!account.address) return true
+                if (!account.address) return false
+                // Always show the currently selected controller
                 if (account.address === controller) return true
+                // Hide accounts that are already used as controllers
                 return !usedControllers?.has(account.address)
               }}
             />

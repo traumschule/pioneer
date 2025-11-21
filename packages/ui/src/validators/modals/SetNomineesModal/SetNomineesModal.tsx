@@ -198,13 +198,20 @@ const SetNomineesModalInner = ({ stash, currentNominations }: SetNomineesModalIn
           <TextMedium>
             <strong>Select Validator</strong>
           </TextMedium>
-          <FilterTextSelect
-            options={validatorOptions}
-            value={selectedValidatorToAdd}
-            onChange={handleAddValidator}
-            emptyOption="Select a validator to add..."
-            selectSize="l"
-          />
+          {isLoadingValidators ? (
+            <TextSmall lighter>Loading validators...</TextSmall>
+          ) : validatorOptions.length === 0 ? (
+            <TextSmall lighter>No validators available</TextSmall>
+          ) : (
+            <FilterTextSelect
+              options={validatorOptions}
+              value={selectedValidatorToAdd}
+              onChange={handleAddValidator}
+              emptyOption="Select a validator to add..."
+              placeholder="Type to filter validators or select from list below..."
+              selectSize="l"
+            />
+          )}
 
           <div>
             <TextMedium>
