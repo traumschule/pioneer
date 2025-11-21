@@ -23,6 +23,7 @@ interface NominateValidatorsModalProps {
   nominatingController: any
   stashAccount: any
   valueBonded: string
+  useExistingStash?: boolean
   nominatingControllerBalance?: BN
   stashAccountBalance?: BN
 }
@@ -35,6 +36,7 @@ export const NominateValidatorsModal = ({
   nominatingController,
   stashAccount,
   valueBonded,
+  useExistingStash = false,
 }: NominateValidatorsModalProps) => {
   const { selectedValidators } = useSelectedValidators()
 
@@ -117,7 +119,7 @@ export const NominateValidatorsModal = ({
             </TextSmall>
           </TransactionFee>
           <ButtonPrimary size="medium" onClick={onBondAndNominate}>
-            Bond and nominate <Arrow direction="right" />
+            {useExistingStash ? 'Nominate' : 'Bond and nominate'} <Arrow direction="right" />
           </ButtonPrimary>
         </FooterContent>
       </ModalFooter>

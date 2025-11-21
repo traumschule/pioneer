@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { first, map, of } from 'rxjs'
 
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { encodeAddress } from '@/accounts/model/encodeAddress'
@@ -12,9 +13,9 @@ import { SuccessModal } from '@/common/components/SuccessModal'
 import { TextMedium, TextSmall } from '@/common/components/typography'
 import { useMachine } from '@/common/hooks/useMachine'
 import { useModal } from '@/common/hooks/useModal'
+import { useObservable } from '@/common/hooks/useObservable'
 import { useSignAndSendTransaction } from '@/common/hooks/useSignAndSendTransaction'
 import { transactionMachine } from '@/common/model/machines'
-import { useMyMemberships } from '@/memberships/hooks/useMyMemberships'
 import { useStakingQueries, useStakingTransactions } from '@/validators/hooks/useStakingSDK'
 
 import { SetNomineesModalCall } from '.'
@@ -38,7 +39,6 @@ const SetNomineesModalInner = ({ stash, currentNominations }: SetNomineesModalIn
   const { hideModal } = useModal<SetNomineesModalCall>()
   const { api } = useApi()
   const { allAccounts } = useMyAccounts()
-  const { active: activeMembership } = useMyMemberships()
   const { nominate } = useStakingTransactions()
   const { getValidators } = useStakingQueries()
   const [state, , service] = useMachine(transactionMachine)
@@ -74,17 +74,26 @@ const SetNomineesModalInner = ({ stash, currentNominations }: SetNomineesModalIn
 
   const transaction = useMemo(() => {
     if (!api) return undefined
-    // Allow empty array to clear nominations
     return nominate(selectedValidators)
   }, [api, nominate, selectedValidators])
 
-  // Use active membership controller account, or fallback to stash account
+  const controllerAccount = useObservable(() => {
+    if (!api) return of(undefined)
+    return api.query.staking.bonded(stash).pipe(
+      map((bonded) => {
+        if (bonded.isNone) return undefined
+        return bonded.unwrap().toString()
+      }),
+      first()
+    )
+  }, [api?.isConnected, stash])
+
   const signerAccount = useMemo(() => {
-    if (activeMembership?.controllerAccount) {
-      return allAccounts.find((acc) => acc.address === activeMembership.controllerAccount) || allAccounts[0]
+    if (controllerAccount) {
+      return allAccounts.find((acc) => acc.address === controllerAccount) || allAccounts[0]
     }
     return allAccounts.find((acc) => acc.address === stash) || allAccounts[0]
-  }, [activeMembership, allAccounts, stash])
+  }, [allAccounts, controllerAccount, stash])
 
   const { isReady, sign, paymentInfo, canAfford } = useSignAndSendTransaction({
     transaction,
@@ -99,7 +108,6 @@ const SetNomineesModalInner = ({ stash, currentNominations }: SetNomineesModalIn
         return prev.filter((addr) => addr !== validatorAddress)
       } else {
         if (prev.length >= 16) {
-          // Max 16 nominations
           return prev
         }
         return [...prev, validatorAddress]
@@ -188,6 +196,7 @@ const SetNomineesModalInner = ({ stash, currentNominations }: SetNomineesModalIn
             ) : (
               filteredValidators.map((validator) => {
                 const isSelected = selectedValidators.includes(validator.account)
+                const isCurrentlyNominated = currentNominations.includes(validator.account)
                 return (
                   <div
                     key={validator.account}
@@ -195,11 +204,15 @@ const SetNomineesModalInner = ({ stash, currentNominations }: SetNomineesModalIn
                       display: 'flex',
                       alignItems: 'center',
                       padding: '12px',
-                      border: isSelected ? '2px solid #4CAF50' : '1px solid #ddd',
+                      border: isSelected
+                        ? '2px solid #4CAF50'
+                        : isCurrentlyNominated
+                        ? '1px solid #2196F3'
+                        : '1px solid #ddd',
                       margin: '4px 0',
                       borderRadius: '4px',
                       cursor: 'pointer',
-                      backgroundColor: isSelected ? '#f0f8f0' : 'white',
+                      backgroundColor: isSelected ? '#f0f8f0' : isCurrentlyNominated ? '#e3f2fd' : 'white',
                     }}
                     onClick={() => handleValidatorToggle(validator.account)}
                   >
@@ -211,7 +224,12 @@ const SetNomineesModalInner = ({ stash, currentNominations }: SetNomineesModalIn
                       style={{ marginRight: '12px', cursor: 'pointer' }}
                     />
                     <div style={{ flex: 1 }}>
-                      <TextMedium>{encodeAddress(validator.account)}</TextMedium>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <TextMedium>{encodeAddress(validator.account)}</TextMedium>
+                        {isCurrentlyNominated && !isSelected && (
+                          <TextSmall style={{ color: '#2196F3', fontWeight: 'bold' }}>(Currently Nominated)</TextSmall>
+                        )}
+                      </div>
                       {validator.commission !== undefined && <TextSmall>Commission: {validator.commission}%</TextSmall>}
                     </div>
                   </div>

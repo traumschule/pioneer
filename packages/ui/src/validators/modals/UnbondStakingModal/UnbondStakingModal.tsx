@@ -15,7 +15,6 @@ import { useMachine } from '@/common/hooks/useMachine'
 import { useModal } from '@/common/hooks/useModal'
 import { useSignAndSendTransaction } from '@/common/hooks/useSignAndSendTransaction'
 import { transactionMachine } from '@/common/model/machines'
-import { useMyMemberships } from '@/memberships/hooks/useMyMemberships'
 import { useStakingTransactions } from '@/validators/hooks/useStakingSDK'
 
 import { UnbondStakingModalCall } from '.'
@@ -40,7 +39,6 @@ const UnbondStakingModalInner = ({ stash, controller, bonded }: UnbondStakingMod
   const { hideModal } = useModal<UnbondStakingModalCall>()
   const { api } = useApi()
   const { allAccounts } = useMyAccounts()
-  const { active: activeMembership } = useMyMemberships()
   const { unbond } = useStakingTransactions()
   const [state, , service] = useMachine(transactionMachine)
 
@@ -66,14 +64,11 @@ const UnbondStakingModalInner = ({ stash, controller, bonded }: UnbondStakingMod
   }, [api, amount, unbond, bondedBigInt])
 
   const signerAccount = useMemo(() => {
-    if (activeMembership?.controllerAccount) {
-      return allAccounts.find((acc) => acc.address === activeMembership.controllerAccount) || allAccounts[0]
-    }
     if (controller) {
       return allAccounts.find((acc) => acc.address === controller) || allAccounts[0]
     }
     return allAccounts.find((acc) => acc.address === stash) || allAccounts[0]
-  }, [activeMembership, allAccounts, controller, stash])
+  }, [allAccounts, controller, stash])
 
   const { isReady, sign, paymentInfo, canAfford } = useSignAndSendTransaction({
     transaction,

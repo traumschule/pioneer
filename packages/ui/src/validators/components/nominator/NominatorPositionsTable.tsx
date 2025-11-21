@@ -195,7 +195,7 @@ const ListHeaders = styled.div`
   display: grid;
   grid-area: validatorstableheaders;
   grid-template-rows: 1fr;
-  grid-template-columns: 280px 100px 140px 120px 180px 140px 140px 40px 40px 40px;
+  grid-template-columns: 100px 210px 240px 120px 180px 140px 140px 40px 40px 40px;
   justify-content: space-between;
   justify-items: center;
   width: 100%;

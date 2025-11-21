@@ -5,6 +5,7 @@ import { combineLatest, first, map, of } from 'rxjs'
 import styled from 'styled-components'
 
 import { AccountInfo } from '@/accounts/components/AccountInfo'
+import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { encodeAddress } from '@/accounts/model/encodeAddress'
 import { Account } from '@/accounts/types'
 import { useApi } from '@/api/hooks/useApi'
@@ -13,14 +14,16 @@ import { TransactionButtonWrapper } from '@/common/components/buttons/Transactio
 import { EditSymbol } from '@/common/components/icons/symbols'
 import { DeleteSymbol } from '@/common/components/icons/symbols/DeleteSymbol'
 import { LockSymbol } from '@/common/components/icons/symbols/LockSymbol'
+import { WatchIcon } from '@/common/components/icons/WatchIcon'
 import { TableListItemAsLinkHover } from '@/common/components/List'
-import { Tooltip } from '@/common/components/Tooltip'
+import { Tooltip, TooltipPopupTitle, TooltipText } from '@/common/components/Tooltip'
 import { TextMedium, TextSmall, TokenValue } from '@/common/components/typography'
 import { BorderRad, Colors, Sizes, Transitions, BN_ZERO, ERAS_PER_DAY, ZIndex } from '@/common/constants'
 import { useModal } from '@/common/hooks/useModal'
 import { useObservable } from '@/common/hooks/useObservable'
 import { shortenAddress } from '@/common/model/formatters'
 import { MyStashPosition } from '@/validators/hooks/useMyStashPositions'
+import { ChangeSessionKeysModalCall } from '@/validators/modals/ChangeSessionKeysModal'
 import { ManageStashAction, ManageStashActionModalCall } from '@/validators/modals/ManageStashActionModal'
 import { SetNomineesModalCall } from '@/validators/modals/SetNomineesModal'
 import { StopStakingModalCall } from '@/validators/modals/StopStakingModal'
@@ -43,6 +46,7 @@ export const NorminatorDashboardItem = ({
   totalClaimable,
 }: Props) => {
   const { showModal } = useModal()
+  const { allAccounts } = useMyAccounts()
   const [isMenuOpen, setMenuOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -77,6 +81,20 @@ export const NorminatorDashboardItem = ({
       source: 'external',
     }
   }, [account, position.stash])
+
+  const controllerAccountInfo = useMemo<Account | null>(() => {
+    if (!position.controller) return null
+    // Find controller account if it exists in allAccounts
+    const controllerAccount = allAccounts?.find((acc) => acc.address === position.controller)
+    if (controllerAccount) {
+      return controllerAccount
+    }
+    return {
+      address: position.controller,
+      name: shortenAddress(position.controller),
+      source: 'external',
+    }
+  }, [position.controller])
 
   const roleLabel = useMemo(() => {
     switch (position.role) {
@@ -135,6 +153,18 @@ export const NorminatorDashboardItem = ({
     isActive: boolean
     stake?: BN
   }
+
+  // Calculate blocks and days from current era (for display purposes)
+  const currentEraBlocks = useMemo(() => {
+    if (!currentEra) return null
+    const BLOCKS_PER_ERA = 3600
+    return new BN(currentEra * BLOCKS_PER_ERA)
+  }, [currentEra])
+
+  const currentEraDays = useMemo(() => {
+    if (!currentEra) return null
+    return Math.floor(currentEra / ERAS_PER_DAY)
+  }, [currentEra])
 
   const nominationsInfo = useObservable<NominationInfo[]>(() => {
     if (!api || position.role !== 'nominator' || !position.nominations.length || !currentEra) {
@@ -235,21 +265,33 @@ export const NorminatorDashboardItem = ({
     }
   }, [currentEra, position.unlocking])
 
-  const formatUnbondingTime = useMemo(() => {
+  // Calculate remaining blocks: each era = 6 hours = 3600 blocks (6 hours * 3600 seconds / 6 seconds per block)
+  const BLOCKS_PER_ERA = 3600
+  const remainingBlocks = useMemo(() => {
+    if (!getUnbondingTimeInfo.hasUnbonding || getUnbondingTimeInfo.isRecoverable) return null
+    return new BN(getUnbondingTimeInfo.remainingEras * BLOCKS_PER_ERA)
+  }, [getUnbondingTimeInfo])
+
+  const unbondingTooltipText = useMemo(() => {
     if (!getUnbondingTimeInfo.hasUnbonding) return null
     if (getUnbondingTimeInfo.isRecoverable) return 'Recoverable'
 
     const { remainingEras } = getUnbondingTimeInfo
     const remainingDays = Math.floor(remainingEras / ERAS_PER_DAY)
     const remainingHours = Math.floor((remainingEras % ERAS_PER_DAY) * 6)
+    const blocks = remainingBlocks || BN_ZERO
 
+    let timeText = ''
     if (remainingDays > 0) {
-      return `${remainingDays} day${remainingDays > 1 ? 's' : ''} ${remainingHours} hr${
+      timeText = `${remainingDays} day${remainingDays > 1 ? 's' : ''} ${remainingHours} hr${
         remainingHours !== 1 ? 's' : ''
       }`
+    } else {
+      timeText = `${remainingHours} hr${remainingHours !== 1 ? 's' : ''}`
     }
-    return `${remainingHours} hr${remainingHours !== 1 ? 's' : ''}`
-  }, [getUnbondingTimeInfo])
+
+    return `${blocks.toString()} blocks (${timeText})`
+  }, [getUnbondingTimeInfo, remainingBlocks])
 
   const openChangeControllerModal = () => {
     showModal<ManageStashActionModalCall>({
@@ -338,21 +380,36 @@ export const NorminatorDashboardItem = ({
     })
   }
 
+  if (position.role === 'validator') {
+    menuItems.push({
+      label: 'Change session keys',
+      onClick: () =>
+        showModal<ChangeSessionKeysModalCall>({
+          modal: 'ChangeSessionKeysModal',
+          data: {
+            stash: position.stash,
+            controller: position.controller,
+          },
+        }),
+      disabled: !position.controller,
+    })
+  }
+
   return (
     <ValidatorItemWrapper>
       <ValidatorItemWrap>
-        <AccountCell>
-          <AccountInfo account={accountInfo} />
-        </AccountCell>
-
         <RoleCell>
           <RoleBadge role={roleVariant}>{roleLabel}</RoleBadge>
         </RoleCell>
 
+        <AccountCell>
+          <AccountInfo account={accountInfo} />
+        </AccountCell>
+
         <ControllerCell>
-          {position.controller ? (
+          {controllerAccountInfo ? (
             <>
-              <TextSmall>{shortenAddress(position.controller)}</TextSmall>
+              <AccountInfo account={controllerAccountInfo} />
               <ButtonForTransfer
                 size="small"
                 square
@@ -375,28 +432,16 @@ export const NorminatorDashboardItem = ({
 
         <StakeCell>
           <StakeInfo>
-            {!position.activeStake.isZero() && (
-              <StakeRow>
-                <TokenValue value={position.activeStake} />
-                <TextSmall lighter>bonded</TextSmall>
-              </StakeRow>
-            )}
-            {getUnbondingTimeInfo.hasUnbonding && !getUnbondingTimeInfo.isRecoverable && (
-              <>
-                <StakeRow>
-                  <TokenValue value={unlockingTotal} />
-                  <TextSmall lighter>unbonding</TextSmall>
-                </StakeRow>
-                {formatUnbondingTime && (
-                  <UnbondingTime>
-                    <TextSmall lighter>{formatUnbondingTime}</TextSmall>
-                  </UnbondingTime>
-                )}
-              </>
-            )}
-            {getUnbondingTimeInfo.hasUnbonding && getUnbondingTimeInfo.isRecoverable && (
-              <StakeRow>
-                <TextMedium>Recoverable</TextMedium>
+            <StakeRow>
+              <TokenValue value={position.activeStake} />
+              {getUnbondingTimeInfo.hasUnbonding && !getUnbondingTimeInfo.isRecoverable && unbondingTooltipText && (
+                <Tooltip popupContent={unbondingTooltipText}>
+                  <UnbondingClockIcon>
+                    <WatchIcon />
+                  </UnbondingClockIcon>
+                </Tooltip>
+              )}
+              {getUnbondingTimeInfo.hasUnbonding && getUnbondingTimeInfo.isRecoverable && (
                 <RecoverableButton
                   size="small"
                   square
@@ -408,8 +453,8 @@ export const NorminatorDashboardItem = ({
                 >
                   <LockSymbol />
                 </RecoverableButton>
-              </StakeRow>
-            )}
+              )}
+            </StakeRow>
           </StakeInfo>
         </StakeCell>
 
@@ -423,35 +468,41 @@ export const NorminatorDashboardItem = ({
                       {nominationsInfo.some((n) => n.isActive) && (
                         <>
                           <TooltipSection>
-                            <TooltipSectionTitle>
+                            <TooltipPopupTitle>
                               Active ({nominationsInfo.filter((n) => n.isActive).length})
-                            </TooltipSectionTitle>
+                            </TooltipPopupTitle>
                             {nominationsInfo
                               .filter((n) => n.isActive)
                               .map((nom) => (
                                 <TooltipRow key={nom.address}>
-                                  <TextSmall>{encodeAddress(nom.address)}</TextSmall>
+                                  <TooltipText>{encodeAddress(nom.address)}</TooltipText>
                                   {nom.stake !== undefined && (
-                                    <TextSmall>
+                                    <TooltipText>
                                       <TokenValue value={nom.stake} />
-                                    </TextSmall>
+                                    </TooltipText>
                                   )}
                                 </TooltipRow>
                               ))}
+                            {currentEraBlocks && currentEraDays !== null && (
+                              <TooltipText style={{ marginTop: '4px', fontSize: '12px', opacity: 0.8 }}>
+                                Era {currentEra}: {currentEraBlocks.toString()} blocks ({currentEraDays} day
+                                {currentEraDays !== 1 ? 's' : ''})
+                              </TooltipText>
+                            )}
                           </TooltipSection>
                           {nominationsInfo.some((n) => !n.isActive) && <TooltipDivider />}
                         </>
                       )}
                       {nominationsInfo.some((n) => !n.isActive) && (
                         <TooltipSection>
-                          <TooltipSectionTitle>
+                          <TooltipPopupTitle>
                             Inactive ({nominationsInfo.filter((n) => !n.isActive).length})
-                          </TooltipSectionTitle>
+                          </TooltipPopupTitle>
                           {nominationsInfo
                             .filter((n) => !n.isActive)
                             .map((nom) => (
                               <TooltipRow key={nom.address}>
-                                <TextSmall>{encodeAddress(nom.address)}</TextSmall>
+                                <TooltipText>{encodeAddress(nom.address)}</TooltipText>
                               </TooltipRow>
                             ))}
                         </TooltipSection>
@@ -585,7 +636,7 @@ const ValidatorItemWrapper = styled.div`
 
 export const ValidatorItemWrap = styled.div`
   display: grid;
-  grid-template-columns: 280px 100px 140px 120px 180px 140px 140px 40px 40px 40px;
+  grid-template-columns: 100px 210px 240px 120px 180px 140px 140px 40px 40px 40px;
   grid-template-rows: 1fr;
   justify-content: space-between;
   justify-items: start;
@@ -648,9 +699,18 @@ const StakeRow = styled.div`
   gap: 8px;
 `
 
-const UnbondingTime = styled.div`
+const UnbondingClockIcon = styled.div`
   display: flex;
   align-items: center;
+  cursor: help;
+  color: ${Colors.Black[600]};
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+  &:hover {
+    color: ${Colors.Black[900]};
+  }
 `
 
 const RecoverableButton = styled(ButtonGhost)`
@@ -678,12 +738,11 @@ const TooltipSection = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
-`
+  margin-bottom: 8px;
 
-const TooltipSectionTitle = styled(TextSmall)`
-  font-weight: 700;
-  color: ${Colors.White};
-  margin-bottom: 4px;
+  &:last-child {
+    margin-bottom: 0;
+  }
 `
 
 const TooltipRow = styled.div`
@@ -691,12 +750,17 @@ const TooltipRow = styled.div`
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  margin-bottom: 4px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
 `
 
 const TooltipDivider = styled.div`
   height: 1px;
-  background-color: ${Colors.Black[600]};
-  margin: 4px 0;
+  background-color: ${Colors.Black[500]};
+  margin: 8px 0;
 `
 
 const ButtonForTransfer = styled(ButtonGhost)`

@@ -70,6 +70,7 @@ import { VoteForProposalModal, VoteForProposalModalCall } from '@/proposals/moda
 import { VoteRationaleModalCall } from '@/proposals/modals/VoteRationale/types'
 import { VoteRationale } from '@/proposals/modals/VoteRationale/VoteRationale'
 import { BondModal, BondModalCall } from '@/validators/modals/BondModal'
+import { ChangeSessionKeysModal, ChangeSessionKeysModalCall } from '@/validators/modals/ChangeSessionKeysModal'
 import { ClaimStakingRewardsModal, ClaimStakingRewardsModalCall } from '@/validators/modals/ClaimStakingRewardsModal'
 import { ManageStashActionModal, ManageStashActionModalCall } from '@/validators/modals/ManageStashActionModal'
 import { NominateValidatorModal } from '@/validators/modals/NominateValidatorModal'
@@ -159,6 +160,7 @@ type ModalNamesBase =
   | ModalName<ValidateModalCall>
   | ModalName<RebagModalCall>
   | ModalName<RebondModalCall>
+  | ModalName<ChangeSessionKeysModalCall>
   | ModalName<CancelProposalModalCall>
 
 export type ModalNames = Extract<ModalNamesBase, string>
@@ -229,6 +231,7 @@ const modals: Record<ModalNames, ReactElement> = {
   ClaimStakingRewardsModal: <ClaimStakingRewardsModal />,
   ManageStashActionModal: <ManageStashActionModal />,
   SetNomineesModal: <SetNomineesModal />,
+  ChangeSessionKeysModal: <ChangeSessionKeysModal />,
 }
 
 const GUEST_ACCESSIBLE_MODALS: ModalNames[] = [
@@ -248,6 +251,7 @@ const GUEST_ACCESSIBLE_MODALS: ModalNames[] = [
   'ClaimStakingRewardsModal',
   'ManageStashActionModal',
   'SetNomineesModal',
+  'ChangeSessionKeysModal',
   'StopStakingModal',
   'UnbondStakingModal',
   'ReportContentModal',

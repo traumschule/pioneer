@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
 
-import { SimpleSelect } from '.'
+import { SimpleSelect, SimpleSelectSizingProps } from '.'
 import { DefaultSelectProps } from './types'
 
-export const FilterTextSelect = (props: DefaultSelectProps<string, string | null>) => {
+export const FilterTextSelect = (
+  props: DefaultSelectProps<string, string | null> & SimpleSelectSizingProps
+) => {
   const [search, setSearch] = useState('')
   const options = useMemo(() => {
     if (!search) return props.options
@@ -13,5 +15,6 @@ export const FilterTextSelect = (props: DefaultSelectProps<string, string | null
     search && setSearch('')
   }, [props.value])
 
-  return <SimpleSelect {...props} options={options} onSearch={setSearch} />
+  const { selectSize, ...restProps } = props
+  return <SimpleSelect {...restProps} options={options} onSearch={setSearch} selectSize={selectSize} />
 }

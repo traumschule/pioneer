@@ -3,17 +3,25 @@ import React, { useState } from 'react'
 import styled from 'styled-components'
 
 import { SelectAccount, SelectedAccount } from '@/accounts/components/SelectAccount'
+import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { Account } from '@/accounts/types'
 import { ButtonPrimary, ButtonGhost } from '@/common/components/buttons'
 import { InputComponent, InputText, TokenInput } from '@/common/components/forms'
 import { Arrow } from '@/common/components/icons/ArrowIcon'
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '@/common/components/Modal'
 import { RowGapBlock } from '@/common/components/page/PageContent'
+import { TextSmall } from '@/common/components/typography'
+import { useMyStashPositions } from '@/validators/hooks/useMyStashPositions'
 
 interface StashAccountModalProps {
   isOpen: boolean
   onClose: () => void
-  onContinue: (data: { nominatingController: any; stashAccount: any; valueBonded: BN }) => void
+  onContinue: (data: {
+    nominatingController: any
+    stashAccount: any
+    valueBonded: BN
+    useExistingStash?: boolean
+  }) => void
   onBack: () => void
 }
 
@@ -22,6 +30,9 @@ export const StashAccountModal = ({ isOpen, onClose, onContinue, onBack }: Stash
   const [stashAccount, setStashAccount] = useState<Account | undefined>(undefined)
   const [valueBonded, setValueBonded] = useState(new BN(0))
   const [paymentDestination, setPaymentDestination] = useState<Account | undefined>(undefined)
+  const [useExistingStash, setUseExistingStash] = useState(false)
+  const existingStashPositions = useMyStashPositions()
+  const { allAccounts } = useMyAccounts()
 
   // Minimum bonding threshold: 1.6666 kJOY = 1,666,600,000,000,000 (in smallest unit)
   const MIN_BONDING_THRESHOLD = new BN('166660000')
@@ -29,6 +40,10 @@ export const StashAccountModal = ({ isOpen, onClose, onContinue, onBack }: Stash
 
   // Validation function
   const isFormValid = () => {
+    if (useExistingStash) {
+      // For existing stashes, we only need the stash account
+      return stashAccount !== undefined
+    }
     return nominatingController && stashAccount && valueBonded && valueBonded.gte(MIN_BONDING_THRESHOLD)
   }
 
@@ -42,13 +57,27 @@ export const StashAccountModal = ({ isOpen, onClose, onContinue, onBack }: Stash
   const handleStashAccountChange = (account: Account | undefined) => {
     setStashAccount(account)
     if (account) {
-      if (!paymentDestination) {
-        setPaymentDestination(account)
-      }
-
-      const previousBondedValue = getPreviousBondedValue(account.address)
-      if (previousBondedValue && previousBondedValue.gt(new BN(0))) {
-        setValueBonded(previousBondedValue)
+      // Check if this is an existing stash with staking
+      const existingPosition = existingStashPositions?.find((pos) => pos.stash === account.address)
+      if (existingPosition) {
+        setUseExistingStash(true)
+        setValueBonded(existingPosition.activeStake)
+        if (existingPosition.controller) {
+          // Find controller account from allAccounts
+          const controllerAccount = allAccounts.find((acc) => acc.address === existingPosition.controller)
+          if (controllerAccount) {
+            setNominatingController(controllerAccount)
+          }
+        }
+      } else {
+        setUseExistingStash(false)
+        if (!paymentDestination) {
+          setPaymentDestination(account)
+        }
+        const previousBondedValue = getPreviousBondedValue(account.address)
+        if (previousBondedValue && previousBondedValue.gt(new BN(0))) {
+          setValueBonded(previousBondedValue)
+        }
       }
     }
   }
@@ -70,28 +99,12 @@ export const StashAccountModal = ({ isOpen, onClose, onContinue, onBack }: Stash
       <ModalBody>
         <RowGapBlock gap={24}>
           <InputComponent
-            label="Add nominating controller account"
-            tooltipText="The controller account manages the nomination process"
-            required
-            inputSize="l"
-          >
-            {nominatingController ? (
-              <SelectedAccount
-                account={nominatingController}
-                onDoubleClick={() => setNominatingController(undefined)}
-              />
-            ) : (
-              <SelectAccount
-                onChange={setNominatingController}
-                selected={nominatingController}
-                placeholder="Choose your nominating controller account or paste the account address"
-              />
-            )}
-          </InputComponent>
-
-          <InputComponent
             label="Add stash account"
-            tooltipText="The stash account holds the bonded tokens"
+            tooltipText={
+              useExistingStash
+                ? 'This account already has staking set up. You can nominate with this stash.'
+                : 'The stash account holds the bonded tokens'
+            }
             required
             inputSize="l"
           >
@@ -106,16 +119,49 @@ export const StashAccountModal = ({ isOpen, onClose, onContinue, onBack }: Stash
             )}
           </InputComponent>
 
-          <InputComponent
-            label="Value bonded"
-            tooltipText="Amount of JOY tokens to bond for staking (minimum: 1.6666 kJOY)"
-            required
-            units="JOY"
-            validation={getValidationError() ? 'invalid' : undefined}
-            message={getValidationError() || undefined}
-          >
-            <TokenInput value={valueBonded} onChange={(_, value) => setValueBonded(value)} />
-          </InputComponent>
+          {useExistingStash && stashAccount && (
+            <div style={{ padding: '12px', background: '#e3f2fd', borderRadius: '4px', marginTop: '-8px' }}>
+              <TextSmall style={{ color: '#1976d2' }}>
+                ✓ This account already has staking set up. You can proceed to nominate validators without bonding
+                additional tokens.
+              </TextSmall>
+            </div>
+          )}
+
+          {!useExistingStash && (
+            <>
+              <InputComponent
+                label="Add nominating controller account"
+                tooltipText="The controller account manages the nomination process"
+                required
+                inputSize="l"
+              >
+                {nominatingController ? (
+                  <SelectedAccount
+                    account={nominatingController}
+                    onDoubleClick={() => setNominatingController(undefined)}
+                  />
+                ) : (
+                  <SelectAccount
+                    onChange={setNominatingController}
+                    selected={nominatingController}
+                    placeholder="Choose your nominating controller account or paste the account address"
+                  />
+                )}
+              </InputComponent>
+
+              <InputComponent
+                label="Value bonded"
+                tooltipText="Amount of JOY tokens to bond for staking (minimum: 1.6666 kJOY)"
+                required
+                units="JOY"
+                validation={getValidationError() ? 'invalid' : undefined}
+                message={getValidationError() || undefined}
+              >
+                <TokenInput value={valueBonded} onChange={(_, value) => setValueBonded(value)} />
+              </InputComponent>
+            </>
+          )}
 
           <InputComponent
             label="On-chain bonding duration"
@@ -149,7 +195,7 @@ export const StashAccountModal = ({ isOpen, onClose, onContinue, onBack }: Stash
           </ButtonGhost>
           <ButtonPrimary
             size="medium"
-            onClick={() => onContinue({ nominatingController, stashAccount, valueBonded })}
+            onClick={() => onContinue({ nominatingController, stashAccount, valueBonded, useExistingStash })}
             disabled={!isFormValid()}
           >
             Continue <Arrow direction="right" />

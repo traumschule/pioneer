@@ -1,5 +1,5 @@
 import BN from 'bn.js'
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { combineLatest, filter, first, map, of, switchMap, catchError } from 'rxjs'
 
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
@@ -23,6 +23,7 @@ import { ClaimStakingRewardsModalCall } from '.'
 interface ValidatorClaimableRewards {
   address: string
   account: Account | undefined
+  controller: string | undefined
   unclaimedEras: number[]
   totalClaimable: BN
 }
@@ -38,6 +39,8 @@ export const ClaimStakingRewardsModal = () => {
   const { allAccounts } = useMyAccounts()
   const { active: activeMembership } = useMyMemberships()
   const [state, , service] = useMachine(transactionMachine)
+  const [claimedEras, setClaimedEras] = useState<Set<string>>(new Set())
+  const pendingBatchRef = useRef<number>(0)
 
   const validatorsRewards = useObservable<ValidatorClaimableRewards[] | undefined>(() => {
     if (!api || !allAccounts.length) return of(undefined)
@@ -127,6 +130,7 @@ export const ClaimStakingRewardsModal = () => {
                       return {
                         address,
                         account: allAccounts.find((acc) => acc.address === address),
+                        controller,
                         unclaimedEras,
                         totalClaimable,
                       }
@@ -167,25 +171,34 @@ export const ClaimStakingRewardsModal = () => {
   const transaction = useMemo(() => {
     if (!api || !validatorsRewards || validatorsRewards.length === 0) return undefined
 
-    const payoutCalls = validatorsRewards.flatMap((validator) =>
-      validator.unclaimedEras.map((era: number) => api.tx.staking.payoutStakers(validator.address, era))
+    const unclaimedPayoutCalls = validatorsRewards.flatMap((validator) =>
+      validator.unclaimedEras
+        .filter((era) => !claimedEras.has(`${validator.address}-${era}`))
+        .map((era: number) => api.tx.staking.payoutStakers(validator.address, era))
     )
 
-    const limitedCalls = payoutCalls.slice(0, 5)
+    const limitedCalls = unclaimedPayoutCalls.slice(0, 5)
 
     return limitedCalls.length === 0
       ? undefined
       : limitedCalls.length === 1
       ? limitedCalls[0]
       : api.tx.utility.batchAll(limitedCalls)
-  }, [api, validatorsRewards])
+  }, [api, validatorsRewards, claimedEras])
 
   const signerAccount = useMemo(() => {
-    if (activeMembership?.controllerAccount) {
-      return allAccounts.find((acc) => acc.address === activeMembership.controllerAccount) || allAccounts[0]
+    if (!validatorsRewards || validatorsRewards.length === 0) {
+      if (activeMembership?.controllerAccount) {
+        return allAccounts.find((acc) => acc.address === activeMembership.controllerAccount) || allAccounts[0]
+      }
+      return allAccounts[0]
+    }
+    const firstController = validatorsRewards[0]?.controller
+    if (firstController) {
+      return allAccounts.find((acc) => acc.address === firstController) || allAccounts[0]
     }
     return allAccounts[0]
-  }, [activeMembership, allAccounts])
+  }, [activeMembership, allAccounts, validatorsRewards])
 
   const { isReady, sign, paymentInfo, canAfford } = useSignAndSendTransaction({
     transaction,
@@ -193,6 +206,37 @@ export const ClaimStakingRewardsModal = () => {
     service: service as any,
     skipQueryNode: true,
   })
+
+  useEffect(() => {
+    if (state.matches('success') && validatorsRewards && validatorsRewards.length > 0) {
+      const currentBatch = validatorsRewards.flatMap((validator) =>
+        validator.unclaimedEras
+          .filter((era) => !claimedEras.has(`${validator.address}-${era}`))
+          .slice(0, 5)
+          .map((era) => `${validator.address}-${era}`)
+      )
+
+      if (currentBatch.length > 0) {
+        setClaimedEras((prev) => {
+          const newSet = new Set(prev)
+          currentBatch.forEach((key) => newSet.add(key))
+          return newSet
+        })
+
+        const remainingEras = validatorsRewards.flatMap((validator) =>
+          validator.unclaimedEras.filter((era) => !claimedEras.has(`${validator.address}-${era}`))
+        )
+
+        if (remainingEras.length > 0) {
+          const timeout = setTimeout(() => {
+            pendingBatchRef.current += 1
+            service.send('SIGN')
+          }, 2000)
+          return () => clearTimeout(timeout)
+        }
+      }
+    }
+  }, [state.value, validatorsRewards, claimedEras, service])
 
   if (state.matches('canceled')) {
     return (
@@ -240,7 +284,29 @@ export const ClaimStakingRewardsModal = () => {
   }
 
   if (state.matches('success')) {
-    return <SuccessModal onClose={hideModal} text="You have successfully claimed your staking rewards" />
+    const remainingEras = validatorsRewards
+      ? validatorsRewards.flatMap((validator) =>
+          validator.unclaimedEras.filter((era) => !claimedEras.has(`${validator.address}-${era}`))
+        )
+      : []
+
+    if (remainingEras.length > 0) {
+      return (
+        <Modal onClose={hideModal} modalSize="s" modalHeight="s">
+          <ModalHeader title="Claiming Rewards" onClick={hideModal} />
+          <ModalBody>
+            <RowGapBlock gap={20}>
+              <TextMedium>
+                Claiming batch {pendingBatchRef.current + 1}... {remainingEras.length} eras remaining.
+              </TextMedium>
+              <TextMedium lighter>Please wait while we continue claiming the remaining rewards.</TextMedium>
+            </RowGapBlock>
+          </ModalBody>
+        </Modal>
+      )
+    }
+
+    return <SuccessModal onClose={hideModal} text="You have successfully claimed all your staking rewards" />
   }
 
   if (!validatorsRewards || validatorsRewards.length === 0) {

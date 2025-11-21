@@ -26,6 +26,7 @@ export const useStakingSDK = () => {
       setPayee: (payee: string) => api.tx.staking.setPayee(payee),
       withdrawUnbonded: (slashingSpans: number) => api.tx.staking.withdrawUnbonded(slashingSpans),
       chill: () => api.tx.staking.chill(),
+      setSessionKeys: (keys: any, proof: any) => api.tx.session.setKeys(keys, proof),
       bondAndNominate: (controller: string, amount: bigint, targets: string[], payee: string) =>
         api.tx.utility.batch([
           api.tx.staking.bond(controller, amount, payee),
@@ -274,6 +275,11 @@ export const useStakingTransactions = () => {
     return staking.setPayee(payee)
   }
 
+  const setSessionKeys = (keys: any, proof: any) => {
+    if (!staking) throw new Error('Staking SDK not connected')
+    return staking.setSessionKeys(keys, proof)
+  }
+
   // Reward transactions
   const payoutStakers = (validatorStash: string, era: number) => {
     if (!staking) throw new Error('Staking SDK not connected')
@@ -318,6 +324,8 @@ export const useStakingTransactions = () => {
     // Controller
     setController,
     setPayee,
+    // Session
+    setSessionKeys,
     // Rewards
     payoutStakers,
     payoutStakersByPage,

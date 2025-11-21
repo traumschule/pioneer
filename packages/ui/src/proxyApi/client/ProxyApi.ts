@@ -1,8 +1,8 @@
-import { ApiRx } from '@polkadot/api'
 import { registry } from '@joystream/types'
+import { ApiRx } from '@polkadot/api'
+import { Events } from '@polkadot/api/base/Events'
 import { Metadata } from '@polkadot/types'
 import { MetadataLatest } from '@polkadot/types/interfaces'
-import { Events } from '@polkadot/api/base/Events'
 import { distinctUntilChanged, filter, fromEvent, map, Observable, share } from 'rxjs'
 
 import { firstWhere } from '@/common/utils/rx'

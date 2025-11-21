@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { filter, first, map, of } from 'rxjs'
 
 import { SelectAccount } from '@/accounts/components/SelectAccount'
+import { useBalance } from '@/accounts/hooks/useBalance'
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { encodeAddress } from '@/accounts/model/encodeAddress'
 import { useApi } from '@/api/hooks/useApi'
@@ -11,6 +12,7 @@ import { FailureModal } from '@/common/components/FailureModal'
 import { InputComponent, InputText } from '@/common/components/forms'
 import { Modal, ModalBody, ModalHeader, ModalTransactionFooter } from '@/common/components/Modal'
 import { RowGapBlock } from '@/common/components/page/PageContent'
+import { FilterTextSelect } from '@/common/components/selects'
 import { SuccessModal } from '@/common/components/SuccessModal'
 import { TextMedium, TextSmall } from '@/common/components/typography'
 import { useMachine } from '@/common/hooks/useMachine'
@@ -59,6 +61,9 @@ const ManageStashActionModalInner = ({ modalData }: ManageStashActionModalInnerP
   const [slashingSpans, setSlashingSpans] = useState<number>(0)
   const [isLoadingInfo, setIsLoadingInfo] = useState(true)
   const [bondExtraError, setBondExtraError] = useState<string | null>(null)
+
+  // Get stash balance for bond more/rebond
+  const stashBalance = useBalance(modalData.stash)
 
   const title = TITLES[modalData.action]
 
@@ -173,10 +178,13 @@ const ManageStashActionModalInner = ({ modalData }: ManageStashActionModalInnerP
   }, [modalData.action, modalData.unlocking])
 
   const signerAccount = useMemo(() => {
+    if (modalData.controller) {
+      return allAccounts.find((acc) => acc.address === modalData.controller) || allAccounts[0]
+    }
     if (activeMembership?.controllerAccount) {
       return allAccounts.find((acc) => acc.address === activeMembership.controllerAccount) || allAccounts[0]
     }
-    return allAccounts.find((acc) => acc.address === modalData.controller) || allAccounts[0]
+    return allAccounts[0]
   }, [activeMembership, allAccounts, modalData.controller])
 
   const { isReady, sign, paymentInfo, canAfford } = useSignAndSendTransaction({
@@ -274,6 +282,12 @@ const ManageStashActionModalInner = ({ modalData }: ManageStashActionModalInnerP
                 <strong>Active Stake:</strong> {balanceToJoy(BigInt(modalData.activeStake.toString()))} JOY
               </TextSmall>
 
+              {stashBalance?.transferable && (
+                <TextSmall>
+                  <strong>Available Balance:</strong> {balanceToJoy(BigInt(stashBalance.transferable.toString()))} JOY
+                </TextSmall>
+              )}
+
               <InputComponent label="Amount (JOY)" required inputSize="m" id="bond-amount">
                 <InputText
                   id="bond-amount"
@@ -285,6 +299,16 @@ const ManageStashActionModalInner = ({ modalData }: ManageStashActionModalInnerP
                   min="0"
                 />
               </InputComponent>
+
+              {amount && stashBalance?.transferable && parseFloat(amount) > 0 && (
+                <>
+                  {joyToBalance(amount) > BigInt(stashBalance.transferable.toString()) && (
+                    <TextSmall style={{ color: 'red' }}>
+                      <strong>Error:</strong> Amount exceeds available balance
+                    </TextSmall>
+                  )}
+                </>
+              )}
 
               {bondExtraError && (
                 <TextSmall style={{ color: 'red' }}>
@@ -354,18 +378,11 @@ const ManageStashActionModalInner = ({ modalData }: ManageStashActionModalInnerP
               <TextMedium>Change where staking rewards are sent for this stash.</TextMedium>
 
               <InputComponent label="Reward Destination" inputSize="m" id="payee">
-                <InputText
-                  id="payee"
-                  placeholder="Select payee"
+                <FilterTextSelect
+                  options={['Stash', 'Controller', 'Account']}
                   value={payee}
-                  onChange={(e) => setPayee(e.target.value)}
-                  list="payee-options"
+                  onChange={(value) => setPayee(value || 'Stash')}
                 />
-                <datalist id="payee-options">
-                  <option value="Stash">Stash (same as controller)</option>
-                  <option value="Controller">Controller</option>
-                  <option value="Account">Specific account</option>
-                </datalist>
               </InputComponent>
 
               <TextSmall>

@@ -15,6 +15,7 @@ import { useValidatorsList } from '@/validators/hooks/useValidatorsList'
 import { WorkingGroupsRoutes } from '@/working-groups/constants'
 
 import { useSelectedValidators } from '../context/SelectedValidatorsContext'
+import { useMyStashPositions } from '../hooks/useMyStashPositions'
 import { ValidatorCard } from '../modals/validatorCard/ValidatorCard'
 import { ValidatorDetailsOrder, ValidatorWithDetails } from '../types'
 
@@ -47,6 +48,19 @@ export const ValidatorsList = ({ validators, eraIndex, order, pagination }: Vali
   const [nominatedValidatorAddresses, setNominatedValidatorAddresses] = useState<Set<string>>(new Set())
   const { format } = useValidatorsList()
   const { selectedValidators, clearSelection } = useSelectedValidators()
+  const stashPositions = useMyStashPositions()
+
+  // Get all validators currently nominated by my stashes
+  const myNominatedValidators = React.useMemo(() => {
+    if (!stashPositions) return new Set<string>()
+    const nominated = new Set<string>()
+    stashPositions.forEach((position) => {
+      position.nominations.forEach((validatorAddress) => {
+        nominated.add(validatorAddress)
+      })
+    })
+    return nominated
+  }, [stashPositions])
 
   if (validators && !validators.length) return <NotFoundText>{t('common:forms.noResults')}</NotFoundText>
 
@@ -213,7 +227,10 @@ export const ValidatorsList = ({ validators, eraIndex, order, pagination }: Vali
                     >
                       <ValidatorItem
                         validator={validator}
-                        isNominated={nominatedValidatorAddresses.has(validator.stashAccount)}
+                        isNominated={
+                          nominatedValidatorAddresses.has(validator.stashAccount) ||
+                          myNominatedValidators.has(validator.stashAccount)
+                        }
                       />
                     </ListItem>
                   ))}
@@ -225,7 +242,10 @@ export const ValidatorsList = ({ validators, eraIndex, order, pagination }: Vali
                     eraIndex={eraIndex}
                     selectCard={selectCard}
                     totalCards={validators.length}
-                    isNominated={nominatedValidatorAddresses.has(validators[cardNumber - 1].stashAccount)}
+                    isNominated={
+                      nominatedValidatorAddresses.has(validators[cardNumber - 1].stashAccount) ||
+                      myNominatedValidators.has(validators[cardNumber - 1].stashAccount)
+                    }
                   />
                 )}
               </>
@@ -254,7 +274,8 @@ export const ValidatorsList = ({ validators, eraIndex, order, pagination }: Vali
         onBondAndNominate={handleBondAndNominate}
         nominatingController={stashAccountData?.nominatingController}
         stashAccount={stashAccountData?.stashAccount}
-        valueBonded={stashAccountData?.valueBonded ? stashAccountData.valueBonded : new BN(0)}
+        valueBonded={stashAccountData?.valueBonded ? stashAccountData.valueBonded.toString() : '0'}
+        useExistingStash={stashAccountData?.useExistingStash}
       />
       <TransactionSummaryModal
         isOpen={isTransactionSummaryModalOpen}
