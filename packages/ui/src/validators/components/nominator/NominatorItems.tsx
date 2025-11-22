@@ -455,16 +455,9 @@ export const NorminatorDashboardItem = ({
             <StakeRow>
               <TokenValue value={position.activeStake} />
             </StakeRow>
-            {unlockingTotal.gt(BN_ZERO) && (
+            {unlockingTotal.gt(BN_ZERO) && getUnbondingTimeInfo.hasUnbonding && (
               <StakeRow>
-                {getUnbondingTimeInfo.hasUnbonding && !getUnbondingTimeInfo.isRecoverable && unbondingTooltipText && (
-                  <Tooltip popupContent={unbondingTooltipText}>
-                    <UnbondingClockIcon>
-                      <WatchIcon />
-                    </UnbondingClockIcon>
-                  </Tooltip>
-                )}
-                {getUnbondingTimeInfo.hasUnbonding && getUnbondingTimeInfo.isRecoverable && (
+                {getUnbondingTimeInfo.isRecoverable && (
                   <RecoverableButton
                     size="small"
                     square
@@ -477,8 +470,13 @@ export const NorminatorDashboardItem = ({
                     <LockSymbol />
                   </RecoverableButton>
                 )}
-                <TokenValue value={unlockingTotal} />
-                <TextSmall lighter>Unbonding:</TextSmall>
+                {!getUnbondingTimeInfo.isRecoverable && unbondingTooltipText && (
+                  <Tooltip popupContent={unbondingTooltipText}>
+                    <UnbondingIcon>
+                      <TextSmall lighter><TokenValue value={unlockingTotal} /> unbonding</TextSmall>
+                    </UnbondingIcon>
+                  </Tooltip>
+                )}
               </StakeRow>
             )}
           </StakeInfo>
@@ -725,7 +723,7 @@ const StakeRow = styled.div`
   gap: 8px;
 `
 
-const UnbondingClockIcon = styled.div`
+const UnbondingIcon = styled.div`
   display: flex;
   align-items: center;
   cursor: help;
