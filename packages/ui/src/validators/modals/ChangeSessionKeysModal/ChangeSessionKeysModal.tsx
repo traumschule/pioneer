@@ -5,6 +5,7 @@ import { AccountInfo } from '@/accounts/components/AccountInfo'
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
 import { encodeAddress } from '@/accounts/model/encodeAddress'
 import { useApi } from '@/api/hooks/useApi'
+import { isHex } from '@polkadot/util';
 import { ButtonSecondary } from '@/common/components/buttons'
 import { FailureModal } from '@/common/components/FailureModal'
 import { InputComponent, InputText, InputTextarea } from '@/common/components/forms'
@@ -43,43 +44,21 @@ const ChangeSessionKeysModalInner = ({ stash, controller }: ChangeSessionKeysMod
   const { active: activeMembership } = useMyMemberships()
   const [state, , service] = useMachine(transactionMachine)
 
-  const [keys, setKeys] = useState('')
   const [proof, setProof] = useState('')
 
   const transaction = useMemo(() => {
-    if (!api || !keys) return undefined
+    if (!api || !proof) return undefined
 
     try {
-      let keysArray: string[]
-      try {
-        keysArray = JSON.parse(keys)
-      } catch {
-        keysArray = keys
-          .split(',')
-          .map((k) => k.trim())
-          .filter(Boolean)
-      }
-
-      if (keysArray.length === 0) return undefined
-
-      if (keysArray.length < 4) {
+      if (!isHex(proof)) {
         return undefined
       }
 
-      const sessionKeys = {
-        grandpa: keysArray[0],
-        babe: keysArray[1],
-        imOnline: keysArray[2],
-        authorityDiscovery: keysArray[3],
-      }
-
-      const proofBytes = proof || '0x'
-
-      return api.tx.session.setKeys(sessionKeys, proofBytes)
+      return api.tx.session.setKeys(proof, new Uint8Array())
     } catch (error) {
       return undefined
     }
-  }, [api, keys, proof])
+  }, [api, proof])
 
   const stashAccount = useMemo(() => {
     return allAccounts.find((acc) => acc.address === stash)
@@ -127,10 +106,10 @@ const ChangeSessionKeysModalInner = ({ stash, controller }: ChangeSessionKeysMod
   }
 
   if (state.matches('success')) {
-    return <SuccessModal onClose={hideModal} text="You have successfully changed your session keys" />
+    return <SuccessModal onClose={hideModal} text="You have successfully changed your session keys." />
   }
 
-  const signDisabled = !isReady || !canAfford || !keys || keys.trim().length === 0
+  const signDisabled = !isReady || !canAfford || !isHex(proof)
 
   return (
     <Modal modalSize="m" modalHeight="m" onClose={hideModal}>
@@ -151,17 +130,7 @@ const ChangeSessionKeysModalInner = ({ stash, controller }: ChangeSessionKeysMod
             )}
           </AccountSection>
 
-          <InputComponent label="keys from rotatekeys" required inputSize="l" id="session-keys">
-            <InputTextarea
-              id="session-keys"
-              placeholder='["5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY", ...] or comma-separated'
-              value={keys}
-              onChange={(e) => setKeys(e.target.value)}
-              style={{ minHeight: '100px', resize: 'vertical' }}
-            />
-          </InputComponent>
-
-          <InputComponent label="Proof (optional)" inputSize="l" id="session-proof">
+          <InputComponent label="hex from rotate-keys" inputSize="l" id="session-proof">
             <InputText
               id="session-proof"
               placeholder="0x..."
@@ -177,8 +146,8 @@ const ChangeSessionKeysModalInner = ({ stash, controller }: ChangeSessionKeysMod
           )}
 
           <TextSmall>
-            <strong>Warning:</strong> Changing session keys incorrectly can cause your validator to be slashed. Make
-            sure you understand the implications before proceeding.
+            <strong>Warning:</strong> Changing session keys incorrectly can cause your validator to be kicked or slashed.
+            Make sure to understand the implications before proceeding.
           </TextSmall>
         </RowGapBlock>
       </ModalBody>
