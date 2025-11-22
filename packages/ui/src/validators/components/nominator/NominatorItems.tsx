@@ -378,11 +378,11 @@ export const NorminatorDashboardItem = ({
       onClick: () => openManageActionModal('bondRebond'),
       disabled: !position.controller,
     },
-    {
-      label: 'Withdraw funds after unbonding period',
-      onClick: () => openManageActionModal('withdraw'),
-      disabled: !position.controller || unlockingTotal.isZero(),
-    },
+    // {
+    //   label: 'Withdraw funds after unbonding period',
+    //   onClick: () => openManageActionModal('withdraw'),
+    //   disabled: !position.controller || unlockingTotal.isZero(),
+    // },
     {
       label: 'Change controller account',
       onClick: () => openManageActionModal('changeController'),
@@ -393,12 +393,12 @@ export const NorminatorDashboardItem = ({
     },
   ]
 
-  if (position.role === 'nominator') {
-    menuItems.push({
-      label: 'Set nominees',
-      onClick: openSetNomineesModal,
-    })
-  }
+  // if (position.role === 'nominator') {
+  //   menuItems.push({
+  //     label: 'Set nominees',
+  //     onClick: openSetNomineesModal,
+  //   })
+  // }
 
   if (position.role === 'validator') {
     menuItems.push({
@@ -552,7 +552,7 @@ export const NorminatorDashboardItem = ({
                 </ButtonForTransfer>
               </NominationsIndicator>
             </Tooltip>
-          ) : (
+          ) : assignmentsCount > 0 && (
             <>
               <TextMedium>{assignmentsCount}</TextMedium>
               <TextSmall lighter>{assignmentsLabel}</TextSmall>
