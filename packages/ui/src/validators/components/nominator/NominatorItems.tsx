@@ -48,50 +48,6 @@ interface Props {
   totalClaimable: BN
 }
 
-// Helper function to abbreviate token amounts (e.g., 500k, 2.3M)
-const abbreviateTokenAmount = (value: BN | number | string | undefined | null): string => {
-  try {
-    if (!value) return '0'
-
-    // Convert to BN if needed
-    let bnValue: BN
-    if (typeof value === 'number') {
-      bnValue = new BN(value)
-    } else if (typeof value === 'string') {
-      bnValue = new BN(value)
-    } else if (value instanceof BN) {
-      bnValue = value
-    } else {
-      error('abbreviateTokenAmount: Invalid value type', value, typeof value)
-      return '0'
-    }
-
-    if (bnValue.isZero()) return '0'
-
-    const joyValue = bnValue.divn(Math.pow(10, JOY_DECIMAL_PLACES)).toNumber()
-    const absValue = Math.abs(joyValue)
-
-    if (absValue >= 1_000_000_000) {
-      const billions = joyValue / 1_000_000_000
-      return `${billions.toFixed(1)}B`
-    } else if (absValue >= 1_000_000) {
-      const millions = joyValue / 1_000_000
-      return `${millions.toFixed(1)}M`
-    } else if (absValue >= 1_000) {
-      const thousands = joyValue / 1_000
-      return `${thousands.toFixed(0)}k`
-    } else {
-      return joyValue.toFixed(1)
-    }
-  } catch (err) {
-    error('Error in abbreviateTokenAmount:', err)
-    error('Value:', value)
-    error('Value type:', typeof value)
-    error('Value constructor:', value?.constructor?.name)
-    return '0'
-  }
-}
-
 export const NorminatorDashboardItem = ({
   account,
   position,
@@ -307,7 +263,7 @@ export const NorminatorDashboardItem = ({
       return earliest
     }, position.unlocking[0])
 
-    const remainingEras = Math.max(0, earliestChunk.era + UNBONDING_PERIOD_ERAS - currentEra)
+    const remainingEras = UNBONDING_PERIOD_ERAS - (currentEra - earliestChunk.era)
     const isRecoverable = remainingEras === 0 && earliestChunk.era + UNBONDING_PERIOD_ERAS <= currentEra
 
     return {
@@ -545,48 +501,14 @@ export const NorminatorDashboardItem = ({
                             </TooltipPopupTitle>
                             {nominationsInfo
                               .filter((n) => n.isActive)
-                              .map((nom) => {
-                                try {
-                                  if (!nom || !nom.address) {
-                                    error('Invalid nom object:', nom)
-                                    return null
-                                  }
-                                  return (
+                              .map((nom) =>
                                     <TooltipRow key={nom.address}>
                                       <TooltipText>{shortenAddress(encodeAddress(nom.address), 20)}</TooltipText>
                                       {nom.stake && (
-                                        <TooltipText>
-                                          {(() => {
-                                            try {
-                                              const stake = nom.stake as any
-                                              if (stake instanceof BN) {
-                                                return abbreviateTokenAmount(stake)
-                                              } else if (stake && typeof stake.toNumber === 'function') {
-                                                return abbreviateTokenAmount(stake.toNumber())
-                                              } else if (stake && typeof stake.toBn === 'function') {
-                                                return abbreviateTokenAmount(stake.toBn())
-                                              } else if (typeof stake === 'number' || typeof stake === 'string') {
-                                                return abbreviateTokenAmount(stake)
-                                              } else {
-                                                error('Unexpected stake type:', stake, typeof stake)
-                                                return '0'
-                                              }
-                                            } catch (err) {
-                                              error('Error converting stake to number:', err)
-                                              error('Stake value:', nom.stake)
-                                              return '0'
-                                            }
-                                          })()}
-                                        </TooltipText>
+                                        <TokenValue mjoy value={nom.stake} />
                                       )}
                                     </TooltipRow>
-                                  )
-                                } catch (err) {
-                                  error('Error rendering nomination:', err)
-                                  error('Nom object:', nom)
-                                  return null
-                                }
-                              })}
+                              )}
                           </TooltipSection>
                           {nominationsInfo.some((n) => !n.isActive) && <TooltipDivider />}
                         </>
