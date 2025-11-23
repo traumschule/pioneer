@@ -73,16 +73,19 @@ const hasEdits = (object: Record<string, any>, fields: string[]) => {
 export function createBatch(
   transactionParams: WithNullableValues<UpdateMemberForm>,
   api: Api | undefined,
-  member: Member
+  member: Member,
+  setControllerChange: (arg0: boolean) => void
 ) {
   const hasProfileEdits = hasEdits(transactionParams, ['about', 'handle', 'avatarUri', 'name', 'externalResources'])
   const hasAccountsEdits = hasEdits(transactionParams, ['rootAccount', 'controllerAccount'])
+  const hasControllerChange = hasEdits(transactionParams, ['controllerAccount'])
 
   const transactions: SubmittableExtrinsic<'rxjs'>[] = []
 
   if (!api || !(hasProfileEdits || hasAccountsEdits)) {
     return
   }
+  if (hasControllerChange) setControllerChange(true)
 
   if (hasProfileEdits && !(transactionParams.avatarUri instanceof File)) {
     const updateProfile = api.tx.members.updateProfile(
