@@ -135,8 +135,6 @@ export const NorminatorDashboardItem = ({
     return position.nominations.length
   }, [position.role, validatorDetails?.staking?.nominators, position.nominations])
 
-  const assignmentsLabel = position.role === 'validator' ? 'nominators' : 'nominations'
-
   const { api } = useApi()
 
   const currentEra = useObservable(() => {
@@ -553,10 +551,7 @@ export const NorminatorDashboardItem = ({
               </NominationsIndicator>
             </Tooltip>
           ) : assignmentsCount > 0 && (
-            <>
-              <TextMedium>{assignmentsCount}</TextMedium>
-              <TextSmall lighter>{assignmentsLabel}</TextSmall>
-            </>
+            <TextMedium>{assignmentsCount}</TextMedium>
           )}
         </AssignmentsCell>
 
