@@ -85,7 +85,6 @@ export function createBatch(
   if (!api || !(hasProfileEdits || hasAccountsEdits)) {
     return
   }
-  if (hasControllerChange) setControllerChange(true)
 
   if (hasProfileEdits && !(transactionParams.avatarUri instanceof File)) {
     const updateProfile = api.tx.members.updateProfile(
@@ -110,6 +109,10 @@ export function createBatch(
       transactionParams.controllerAccount?.address || null
     )
     transactions.push(updateAccounts)
+    if (hasControllerChange) {
+      setControllerChange(true)
+      return updateAccounts
+    }
   }
 
   return api.tx.utility.batch(transactions)

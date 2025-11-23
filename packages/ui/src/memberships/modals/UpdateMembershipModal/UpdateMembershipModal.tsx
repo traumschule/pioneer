@@ -17,7 +17,7 @@ import { UpdateMembershipSuccessModal } from './UpdateMembershipSuccessModal'
 export const UpdateMembershipModal = () => {
   const { api } = useApi()
   const { active } = useMyMemberships()
-   const [hasControllerChange, setChangeController] = useState(false)
+  const [hasControllerChange, setChangeController] = useState(false)
 
   const {
     hideModal,
