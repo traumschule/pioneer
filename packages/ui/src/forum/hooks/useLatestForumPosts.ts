@@ -24,28 +24,18 @@ export const useLatestForumPosts = (limit: number) => {
   const { data, loading } = useGetLatestForumPostsQuery({
     variables: {
       orderBy: [ForumPostOrderByInput.UpdatedAtDesc],
-      limit,
-      where: {
-        status_json: {
-          isTypeOf_not: 'PostStatusRemoved',
-        },
-        thread: {
-          status_json: {
-            isTypeOf_eq: 'ThreadStatusActive',
-          },
-          category: {
-            status_json: {
-              isTypeOf_eq: ActiveStatus,
-            },
-          },
-        },
-      },
+      limit: 50,
+      where: {}
     },
   })
+  console.log('data: ',data)
 
   const posts = useMemo(
     () =>
-      data?.forumPosts.map((post) => ({
+      data?.forumPosts.filter((post) =>
+        post.thread.status.__typename == "ThreadStatusActive" &&
+	post.thread.category.status.__typename == "CategoryStatusActive")
+      .map((post) => ({
         id: post.id,
         createdAt: post.createdAt,
         updatedAt: post.updatedAt,

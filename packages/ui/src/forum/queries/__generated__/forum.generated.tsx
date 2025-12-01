@@ -1416,7 +1416,7 @@ export type GetForumPostParentsQuery = {
   __typename: 'Query'
   forumPostByUniqueInput?: {
     __typename: 'ForumPost'
-    thread: { __typename: 'ForumThread'; id: string; category: { __typename: 'ForumCategory'; id: string } }
+    thread: { __typename: 'ForumThread'; id: string; status: { __typename: ThreadStatusType}; category: { __typename: 'ForumCategory'; id: string; status: { __typename: CategoryStatusType } } }
   } | null
 }
 
@@ -1610,7 +1610,12 @@ export type ForumPostWithThreadFieldsFragment = {
     id: string
     title: string
     categoryId: string
-    category: { __typename: 'ForumCategory'; title: string }
+    status: { __typename: ThreadStatusType }
+    category: {
+      __typename: 'ForumCategory'
+      title: string
+      status: { __typename: CategoryStatusType }
+    }
   }
 }
 
@@ -1926,9 +1931,11 @@ export const ForumPostWithThreadFieldsFragmentDoc = gql`
     thread {
       id
       title
+      status {  __typename }
       categoryId
       category {
         title
+	status {  __typename }
       }
     }
   }
