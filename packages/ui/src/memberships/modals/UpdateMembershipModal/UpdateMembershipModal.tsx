@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 
 import { useApi } from '@/api/hooks/useApi'
 import { TextMedium } from '@/common/components/typography'
@@ -26,6 +26,8 @@ export const isURL = (str: string) => {
 export const UpdateMembershipModal = () => {
   const { api } = useApi()
   const { active } = useMyMemberships()
+  const [hasControllerChange, setChangeController] = useState(false)
+
   const {
     hideModal,
     modalData: { member },
@@ -53,7 +55,7 @@ export const UpdateMembershipModal = () => {
   }, [api?.isConnected, state.context.form?.validatorAccounts])
 
   const updateMembershipTransaction = useMemo(
-    () => state.context.form && createBatch(state.context.form, api, member),
+    () => state.context.form && createBatch(state.context.form, api, member, setChangeController),
     [api?.isConnected, state.context.form]
   )
 
@@ -173,7 +175,7 @@ export const UpdateMembershipModal = () => {
       <SignTransactionModal
         buttonText="Sign and update a member"
         transaction={updateMembershipTransaction}
-        signer={member.controllerAccount}
+        signer={hasControllerChange ? member.rootAccount : member.controllerAccount}
         service={state.children.updateMembership}
       >
         <TextMedium>You intend to update your membership.</TextMedium>
