@@ -28,14 +28,13 @@ describe('useProposals', () => {
   })
 
   describe('Status: active | past', () => {
-    // flaky test: #4887
-    //it('Status: active', async () => {
-    //  const result = await loadUseProposals({ status: 'active' })
-    //  expect(result.proposals.length).toBeGreaterThan(0)
-    //  result.proposals.forEach((proposal) => {
-    //    expect(proposalActiveStatuses.includes(proposal.status)).toBeTruthy()
-    //  })
-    //})
+    it('Status: active', async () => {
+      const result = await loadUseProposals({ status: 'active' })
+      expect(result.proposals.length).toBeGreaterThan(0)
+      result.proposals.forEach((proposal) => {
+        expect(proposalActiveStatuses.includes(proposal.status)).toBeTruthy()
+      })
+    })
 
     it('Status: past', async () => {
       const result = await loadUseProposals({ status: 'past' })
