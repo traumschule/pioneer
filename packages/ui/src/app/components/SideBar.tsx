@@ -8,6 +8,11 @@ import { SidebarConnections } from '@/app/components/SidebarConnections'
 import { MembersRoutes, ProfileRoutes } from '@/app/constants/routes'
 import { LinkSymbol, LinkSymbolStyle, PolkadotSymbol } from '@/common/components/icons/symbols'
 import { ExplorerSymbol } from '@/common/components/icons/symbols/ExplorerSymbol'
+//import { AppsIcon } from '@/common/components/page/Sidebar/LinksIcons/AppsIcon'
+//import { BandwidthIcon } from '@/common/components/page/Sidebar/LinksIcons/BandwidthIcon'
+//import { BountyIcon } from '@/common/components/page/Sidebar/LinksIcons/BountyIcon'
+//import { ConstitutionIcon } from '@/common/components/page/Sidebar/LinksIcons/ConstitutionIcon'
+//import { ContentIcon } from '@/common/components/page/Sidebar/LinksIcons/ContentIcon'
 import { CouncilIcon } from '@/common/components/page/Sidebar/LinksIcons/CouncilIcon'
 import { ElectionIcon } from '@/common/components/page/Sidebar/LinksIcons/ElectionIcon'
 import { ForumIcon } from '@/common/components/page/Sidebar/LinksIcons/ForumIcon'
@@ -158,11 +163,6 @@ export const SideBarContent = () => {
                 <NavigationLinksItem>
                   <NavigationLink to="/inexisting" icon={<FinancialsIcon />} disabled>
                     Financials
-                  </NavigationLink>
-                </NavigationLinksItem>
-                <NavigationLinksItem>
-                  <NavigationLink to="/inexisting" icon={<ValidatorsIcon />} disabled>
-                    Validators
                   </NavigationLink>
                 </NavigationLinksItem>
                 <NavigationLinksItem>
