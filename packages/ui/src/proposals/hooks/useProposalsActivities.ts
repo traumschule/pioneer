@@ -3,7 +3,7 @@ import { asProposalActivities } from '../types/ProposalsActivities'
 
 export const useProposalsActivities = () => {
   const { data, loading } = useGetProposalsEventsQuery()
-  
+
   const activities = data
     ? asProposalActivities({
         proposalCreatedEvents: data.proposalCreatedEvents,
@@ -18,7 +18,7 @@ export const useProposalsActivities = () => {
         proposalDiscussionPostDeletedEvents: data.proposalDiscussionPostDeletedEvents,
       })
     : []
-  
+
   return {
     isLoading: loading,
     activities,

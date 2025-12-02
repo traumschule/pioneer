@@ -12,5 +12,3 @@ export type UnbondStakingModalCall = ModalWithDataCall<
 >
 
 export * from './UnbondStakingModal'
-
-

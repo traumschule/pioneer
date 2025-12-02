@@ -2,8 +2,8 @@ import * as Apollo from '@apollo/client'
 import { useEffect, useMemo } from 'react'
 
 import { ForumPostOrderByInput, ForumThreadOrderByInput } from '@/common/api/queries'
-import { GetForumPostsDocument, useGetForumThreadsQuery } from '@/forum/queries'
 import { ActiveStatus } from '@/forum/hooks/useForumCategories'
+import { GetForumPostsDocument, useGetForumThreadsQuery } from '@/forum/queries'
 import { asForumPost, asForumThread } from '@/forum/types'
 
 interface UseCategoryLatestPostOptions {

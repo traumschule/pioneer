@@ -51,4 +51,3 @@ LongAccountName.args = {
     name: 'Very Long Nominator Account Name That Should Be Truncated',
   },
 }
-

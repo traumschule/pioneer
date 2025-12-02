@@ -25,12 +25,7 @@ export const joyStringToPlanckBigInt = (value: string): bigint => BigInt(joyValu
 export const planckToJoyString = (value: BN | bigint | string | number, precision = 4): string => {
   const bnValue = toBN(value)
   const { div: integerPart, mod } = bnValue.divmod(JOY_UNIT)
-  const fractional = mod
-    .abs()
-    .toString()
-    .padStart(JOY_DECIMAL_PLACES, '0')
-    .slice(0, precision)
-    .replace(/0+$/, '')
+  const fractional = mod.abs().toString().padStart(JOY_DECIMAL_PLACES, '0').slice(0, precision).replace(/0+$/, '')
 
   return fractional ? `${integerPart.toString()}.${fractional}` : integerPart.toString()
 }

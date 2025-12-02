@@ -1,10 +1,10 @@
-import BN from 'bn.js'
 import { Meta, Story } from '@storybook/react'
+import BN from 'bn.js'
 import React from 'react'
 
 import { MockApolloProvider } from '@/mocks/components/storybook/MockApolloProvider'
-import { AccountStakingRewards } from '@/validators/hooks/useAllAccountsStakingRewards'
 import { ValidatorAccountItem, AccountItemDataProps } from '@/validators/components/dashboard/ValidatorAccountItem'
+import { AccountStakingRewards } from '@/validators/hooks/useAllAccountsStakingRewards'
 
 export default {
   title: 'Validators/Dashboard/ValidatorAccountItem',
@@ -83,4 +83,3 @@ SmallRewards.args = {
     hasClaimable: true,
   },
 }
-

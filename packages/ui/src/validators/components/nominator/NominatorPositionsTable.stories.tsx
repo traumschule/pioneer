@@ -4,10 +4,9 @@ import React from 'react'
 import styled, { createGlobalStyle } from 'styled-components'
 
 import { encodeAddress } from '@/accounts/model/encodeAddress'
-import { createType } from '@/common/model/createType'
 import { Tooltip, TooltipPopupTitle, TooltipText } from '@/common/components/Tooltip'
-import { TextSmall } from '@/common/components/typography'
 import { Colors, JOY_DECIMAL_PLACES } from '@/common/constants'
+import { createType } from '@/common/model/createType'
 import { shortenAddress } from '@/common/model/formatters'
 import { MockProvidersDecorator } from '@/mocks/providers'
 import { NominatorPositionsTable, Props } from '@/validators/components/nominator/NominatorPositionsTable'
@@ -434,67 +433,63 @@ export const TooltipActiveState: Story = () => {
           className="wide-tooltip"
           tooltipOpen={true}
           popupContent={
-          <NominationsTooltipContent>
-            {activeNominations.length > 0 && (
-              <>
-                <TooltipSection>
-                  <TooltipPopupTitle>Active ({activeNominations.length})</TooltipPopupTitle>
-                  {activeNominations.map((nom) => (
-                    <TooltipRow key={nom.address}>
-                      <TooltipText>
-                        {nom.address.includes('...')
-                          ? nom.address
-                          : shortenAddress(encodeAddress(nom.address), 20)}
-                      </TooltipText>
-                      {nom.stake && (
+            <NominationsTooltipContent>
+              {activeNominations.length > 0 && (
+                <>
+                  <TooltipSection>
+                    <TooltipPopupTitle>Active ({activeNominations.length})</TooltipPopupTitle>
+                    {activeNominations.map((nom) => (
+                      <TooltipRow key={nom.address}>
                         <TooltipText>
-                          {(() => {
-                            try {
-                              const stake = nom.stake as any
-                              if (stake instanceof BN) {
-                                return abbreviateTokenAmount(stake)
-                              } else if (stake && typeof stake.toNumber === 'function') {
-                                return abbreviateTokenAmount(stake.toNumber())
-                              } else if (stake && typeof stake.toBn === 'function') {
-                                return abbreviateTokenAmount(stake.toBn())
-                              } else if (typeof stake === 'number' || typeof stake === 'string') {
-                                return abbreviateTokenAmount(stake)
-                              } else {
+                          {nom.address.includes('...') ? nom.address : shortenAddress(encodeAddress(nom.address), 20)}
+                        </TooltipText>
+                        {nom.stake && (
+                          <TooltipText>
+                            {(() => {
+                              try {
+                                const stake = nom.stake as any
+                                if (stake instanceof BN) {
+                                  return abbreviateTokenAmount(stake)
+                                } else if (stake && typeof stake.toNumber === 'function') {
+                                  return abbreviateTokenAmount(stake.toNumber())
+                                } else if (stake && typeof stake.toBn === 'function') {
+                                  return abbreviateTokenAmount(stake.toBn())
+                                } else if (typeof stake === 'number' || typeof stake === 'string') {
+                                  return abbreviateTokenAmount(stake)
+                                } else {
+                                  return '0'
+                                }
+                              } catch (err) {
                                 return '0'
                               }
-                            } catch (err) {
-                              return '0'
-                            }
-                          })()}
-                        </TooltipText>
-                      )}
+                            })()}
+                          </TooltipText>
+                        )}
+                      </TooltipRow>
+                    ))}
+                  </TooltipSection>
+                  {inactiveNominations.length > 0 && <TooltipDivider />}
+                </>
+              )}
+              {inactiveNominations.length > 0 && (
+                <TooltipSection>
+                  <TooltipPopupTitle>Inactive ({inactiveNominations.length})</TooltipPopupTitle>
+                  {inactiveNominations.map((nom) => (
+                    <TooltipRow key={nom.address}>
+                      <TooltipText>
+                        {nom.address.includes('...') ? nom.address : shortenAddress(encodeAddress(nom.address), 20)}
+                      </TooltipText>
                     </TooltipRow>
                   ))}
                 </TooltipSection>
-                {inactiveNominations.length > 0 && <TooltipDivider />}
-              </>
-            )}
-            {inactiveNominations.length > 0 && (
-              <TooltipSection>
-                <TooltipPopupTitle>Inactive ({inactiveNominations.length})</TooltipPopupTitle>
-                {inactiveNominations.map((nom) => (
-                  <TooltipRow key={nom.address}>
-                    <TooltipText>
-                      {nom.address.includes('...')
-                        ? nom.address
-                        : shortenAddress(encodeAddress(nom.address), 20)}
-                    </TooltipText>
-                  </TooltipRow>
-                ))}
-              </TooltipSection>
-            )}
-          </NominationsTooltipContent>
-        }
-      >
-        <div style={{ padding: '20px', background: Colors.Black[100], borderRadius: '4px', cursor: 'pointer' }}>
-          Hover or click to see tooltip (tooltip is forced open in this story)
-        </div>
-      </Tooltip>
+              )}
+            </NominationsTooltipContent>
+          }
+        >
+          <div style={{ padding: '20px', background: Colors.Black[100], borderRadius: '4px', cursor: 'pointer' }}>
+            Hover or click to see tooltip (tooltip is forced open in this story)
+          </div>
+        </Tooltip>
       </div>
     </>
   )
@@ -502,7 +497,8 @@ export const TooltipActiveState: Story = () => {
 TooltipActiveState.parameters = {
   docs: {
     description: {
-      story: 'This story shows the nominations tooltip in an active/open state for testing purposes. The tooltip displays active and inactive nominations with their stake amounts.',
+      story:
+        'This story shows the nominations tooltip in an active/open state for testing purposes. The tooltip displays active and inactive nominations with their stake amounts.',
     },
   },
 }

@@ -1,3 +1,4 @@
+import { SubmittableExtrinsic } from '@polkadot/api/types'
 import React from 'react'
 
 import { useApi } from '@/api/hooks/useApi'
@@ -6,9 +7,7 @@ import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/common/components/
 import { RowGapBlock } from '@/common/components/page/PageContent'
 import { TextMedium } from '@/common/components/typography'
 import { useModal } from '@/common/hooks/useModal'
-import { SubmittableExtrinsic } from '@polkadot/api/types'
 import { Address } from '@/common/types'
-
 import { StakingTransactionModalCall } from '@/validators/modals/StakingTransactionModal/types'
 
 interface Props {
@@ -25,26 +24,26 @@ export const StakingTransactionModal = ({ title, description, transaction, signe
 
   const handleTransaction = async () => {
     if (!transaction || !api) {
-      console.error('Transaction or API not available')
+      //console.error('Transaction or API not available')
       return
     }
 
     try {
       // TODO: Implement proper transaction signing and submission
-      console.log(`Executing ${title} transaction for validator:`, validatorAddress)
-      console.log('Transaction:', transaction)
-      console.log('Signer:', signer)
-      
+      //console.log(`Executing ${title} transaction for validator:`, validatorAddress)
+      //console.log('Transaction:', transaction)
+      //console.log('Signer:', signer)
+
       // For now, just show success message
       // In the actual implementation, this would:
       // 1. Sign the transaction
       // 2. Submit it to the network
       // 3. Wait for confirmation
       // 4. Show success/error states
-      
+
       hideModal()
     } catch (error) {
-      console.error('Transaction failed:', error)
+      //console.error('Transaction failed:', error)
     }
   }
 

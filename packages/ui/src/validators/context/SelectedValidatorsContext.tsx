@@ -21,16 +21,16 @@ export const SelectedValidatorsProvider = ({ children, maxSelection = 16 }: Sele
   const [selectedValidators, setSelectedValidators] = useState<ValidatorWithDetails[]>([])
 
   const isSelected = (validator: ValidatorWithDetails) => {
-    return selectedValidators.some(selected => selected.stashAccount === validator.stashAccount)
+    return selectedValidators.some((selected) => selected.stashAccount === validator.stashAccount)
   }
 
   const toggleSelection = (validator: ValidatorWithDetails) => {
-    setSelectedValidators(prev => {
-      const isCurrentlySelected = prev.some(selected => selected.stashAccount === validator.stashAccount)
-      
+    setSelectedValidators((prev) => {
+      const isCurrentlySelected = prev.some((selected) => selected.stashAccount === validator.stashAccount)
+
       if (isCurrentlySelected) {
         // Remove from selection
-        return prev.filter(selected => selected.stashAccount !== validator.stashAccount)
+        return prev.filter((selected) => selected.stashAccount !== validator.stashAccount)
       } else {
         // Add to selection if under max limit
         if (prev.length < maxSelection) {

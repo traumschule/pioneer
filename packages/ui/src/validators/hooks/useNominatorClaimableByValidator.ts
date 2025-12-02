@@ -40,4 +40,3 @@ export const useNominatorClaimableByValidator = (validator: ValidatorWithDetails
     return estimatedClaimable
   }, [stakingInfo, stakingRewards, nominatorInfo])
 }
-

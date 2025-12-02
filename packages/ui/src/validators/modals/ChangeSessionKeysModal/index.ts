@@ -9,4 +9,3 @@ export type ChangeSessionKeysModalCall = ModalWithDataCall<
 >
 
 export * from './ChangeSessionKeysModal'
-

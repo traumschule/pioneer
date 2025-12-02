@@ -1,9 +1,9 @@
 import React from 'react'
 import styled from 'styled-components'
 
-import { GhostRouterLink } from '@/common/components/RouterLink'
 import { BreadcrumbsItem, BreadcrumbsItemLink } from '@/common/components/page/Sidebar/Breadcrumbs/BreadcrumbsItem'
 import { BreadcrumbsListComponent } from '@/common/components/page/Sidebar/Breadcrumbs/BreadcrumbsList'
+import { GhostRouterLink } from '@/common/components/RouterLink'
 import { Colors, Fonts, Transitions } from '@/common/constants'
 
 import { TextMedium } from '../typography'

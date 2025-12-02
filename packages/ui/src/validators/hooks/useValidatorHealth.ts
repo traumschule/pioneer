@@ -43,4 +43,3 @@ export const useValidatorHealth = (validator: ValidatorWithDetails): number => {
     return Math.min(100, Math.max(0, health))
   }, [validator])
 }
-

@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 
 import { ForumThreadOrderByInput } from '@/common/api/queries'
-import { useGetForumThreadsQuery } from '@/forum/queries'
 import { ActiveStatus } from '@/forum/hooks/useForumCategories'
+import { useGetForumThreadsQuery } from '@/forum/queries'
 
 import { asForumThread } from '../types'
 

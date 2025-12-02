@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 
 import { useMyAccounts } from '@/accounts/hooks/useMyAccounts'
+import { encodeAddress } from '@/accounts/model/encodeAddress'
 import { useApi } from '@/api/hooks/useApi'
 import { ButtonSecondary } from '@/common/components/buttons'
 import { FailureModal } from '@/common/components/FailureModal'
@@ -13,9 +14,8 @@ import { useModal } from '@/common/hooks/useModal'
 import { useSignAndSendTransaction } from '@/common/hooks/useSignAndSendTransaction'
 import { transactionMachine } from '@/common/model/machines'
 import { Address } from '@/common/types'
-import { encodeAddress } from '@/accounts/model/encodeAddress'
-import { useStakingTransactions } from '@/validators/hooks/useStakingSDK'
 import { useMyMemberships } from '@/memberships/hooks/useMyMemberships'
+import { useStakingTransactions } from '@/validators/hooks/useStakingSDK'
 
 import { StakeModalCall } from './types'
 
@@ -66,7 +66,9 @@ const StakeModalInner = ({ validatorAddress }: Props) => {
       <Modal onClose={hideModal} modalSize="m" modalHeight="m">
         <ModalHeader title="Transaction Canceled" onClick={hideModal} />
         <ModalBody>
-          <TextMedium>The transaction was canceled. Please try again if you want to nominate this validator.</TextMedium>
+          <TextMedium>
+            The transaction was canceled. Please try again if you want to nominate this validator.
+          </TextMedium>
         </ModalBody>
         <ModalTransactionFooter next={{ onClick: hideModal, label: 'Close' }} />
       </Modal>
@@ -109,8 +111,8 @@ const StakeModalInner = ({ validatorAddress }: Props) => {
           </TextMedium>
 
           <TextMedium>
-            <strong>Note:</strong> You must have bonded tokens before you can nominate. If you haven't bonded yet, please{' '}
-            use the "Bond" action first. Your nomination will take effect in the next era.
+            <strong>Note:</strong> You must have bonded tokens before you can nominate. If you haven't bonded yet,
+            please use the "Bond" action first. Your nomination will take effect in the next era.
           </TextMedium>
 
           {!canAfford && paymentInfo?.partialFee && (

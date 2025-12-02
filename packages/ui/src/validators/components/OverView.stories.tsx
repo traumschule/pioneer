@@ -1,5 +1,5 @@
-import BN from 'bn.js'
 import { Meta, Story } from '@storybook/react'
+import BN from 'bn.js'
 import React from 'react'
 
 import { MockProvidersDecorator } from '@/mocks/providers'
@@ -149,4 +149,3 @@ EmptyState.parameters = {
     },
   },
 }
-

@@ -1,5 +1,4 @@
 import { ModalWithDataCall } from '@/common/providers/modal/types'
-
 import { MyStakingRole } from '@/validators/hooks/useMyStashPositions'
 
 export type StopStakingModalCall = ModalWithDataCall<
@@ -11,5 +10,3 @@ export type StopStakingModalCall = ModalWithDataCall<
 >
 
 export * from './StopStakingModal'
-
-

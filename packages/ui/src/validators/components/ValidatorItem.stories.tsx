@@ -1,10 +1,10 @@
-import BN from 'bn.js'
 import { Meta, Story } from '@storybook/react'
+import BN from 'bn.js'
 import React from 'react'
 
 import { MockApolloProvider } from '@/mocks/components/storybook/MockApolloProvider'
-import { SelectedValidatorsProvider } from '@/validators/context/SelectedValidatorsContext'
 import { ValidatorItem, ValidatorItemProps } from '@/validators/components/ValidatorItem'
+import { SelectedValidatorsProvider } from '@/validators/context/SelectedValidatorsContext'
 import { ValidatorWithDetails } from '@/validators/types/Validator'
 
 export default {
@@ -144,4 +144,3 @@ Nominated.args = {
   }),
   isNominated: true,
 }
-

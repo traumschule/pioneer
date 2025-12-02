@@ -48,9 +48,7 @@ LargeSize.args = {
     handle: 'validator_bob',
     name: 'Bob Validator',
     avatar: undefined,
-    externalResources: [
-      { source: 'TWITTER', value: 'bob_validator' },
-    ],
+    externalResources: [{ source: 'TWITTER', value: 'bob_validator' }],
   } as any,
   size: 'l',
 }
@@ -63,10 +61,7 @@ WithTwitterOnly.args = {
     handle: 'validator_charlie',
     name: 'Charlie Validator',
     avatar: undefined,
-    externalResources: [
-      { source: 'TWITTER', value: 'charlie_validator' },
-    ],
+    externalResources: [{ source: 'TWITTER', value: 'charlie_validator' }],
   } as any,
   size: 's',
 }
-

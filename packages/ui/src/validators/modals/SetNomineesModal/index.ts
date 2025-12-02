@@ -9,5 +9,3 @@ export type SetNomineesModalCall = ModalWithDataCall<
 >
 
 export * from './SetNomineesModal'
-
-

@@ -23,14 +23,7 @@ interface Props {
   onUnbond: () => void
 }
 
-export const NominatorActionMenu = ({
-  items,
-  canStop,
-  stopDisabled,
-  onStop,
-  canUnbond,
-  onUnbond,
-}: Props) => {
+export const NominatorActionMenu = ({ items, canStop, stopDisabled, onStop, canUnbond, onUnbond }: Props) => {
   const [isMenuOpen, setMenuOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -75,10 +68,7 @@ export const NominatorActionMenu = ({
     setMenuOpen((prev) => !prev)
   }
 
-  const handleMenuItemClick = (
-    event: React.MouseEvent<HTMLButtonElement>,
-    { disabled, onClick }: MenuActionItem
-  ) => {
+  const handleMenuItemClick = (event: React.MouseEvent<HTMLButtonElement>, { disabled, onClick }: MenuActionItem) => {
     if (disabled) return
     event.stopPropagation()
     setMenuOpen(false)
@@ -94,13 +84,7 @@ export const NominatorActionMenu = ({
   return (
     <TransactionButtonWrapper>
       <MenuContainer ref={menuRef}>
-        <ButtonForTransfer
-          size="small"
-          square
-          onClick={toggleMenu}
-          aria-haspopup="menu"
-          aria-expanded={isMenuOpen}
-        >
+        <ButtonForTransfer size="small" square onClick={toggleMenu} aria-haspopup="menu" aria-expanded={isMenuOpen}>
           <EditSymbol />
         </ButtonForTransfer>
         {isMenuOpen &&
@@ -185,4 +169,3 @@ const MenuContainer = styled.div`
   gap: 0;
   align-items: center;
 `
-
