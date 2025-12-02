@@ -19,22 +19,26 @@ export interface ForumPostWithThread {
   }
 }
 
-export const useLatestForumPosts = (limit: number) => {
+export const useLatestForumPosts = () => {
+  // Fetch more posts than needed since we'll filter client-side
   const { data, loading } = useGetLatestForumPostsQuery({
     variables: {
       orderBy: [ForumPostOrderByInput.UpdatedAtDesc],
-      limit,
-      where: {
-        status_json: {
-          isTypeOf_not: 'PostStatusRemoved',
-        },
-      },
+      limit: 50,
+      where: {},
     },
   })
 
-  const posts = useMemo(
-    () =>
-      data?.forumPosts.map((post) => ({
+  const posts = useMemo(() => {
+    if (!data?.forumPosts) return []
+
+    const filtered = data.forumPosts
+      .filter(
+        (post) =>
+          post.thread.status.__typename === 'ThreadStatusActive' &&
+          post.thread.category.status.__typename === 'CategoryStatusActive'
+      )
+      .map((post) => ({
         id: post.id,
         createdAt: post.createdAt,
         updatedAt: post.updatedAt,
@@ -47,9 +51,10 @@ export const useLatestForumPosts = (limit: number) => {
           categoryId: post.thread.categoryId,
           categoryTitle: post.thread.category.title,
         },
-      })) ?? [],
-    [data, loading]
-  )
+      }))
+
+    return filtered
+  }, [data])
 
   return { posts, isLoading: loading }
 }

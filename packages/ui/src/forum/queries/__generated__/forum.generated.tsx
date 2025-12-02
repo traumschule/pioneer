@@ -1610,7 +1610,19 @@ export type ForumPostWithThreadFieldsFragment = {
     id: string
     title: string
     categoryId: string
-    category: { __typename: 'ForumCategory'; title: string }
+    status:
+      | { __typename: 'ThreadStatusActive' }
+      | { __typename: 'ThreadStatusLocked' }
+      | { __typename: 'ThreadStatusModerated' }
+      | { __typename: 'ThreadStatusRemoved' }
+    category: {
+      __typename: 'ForumCategory'
+      title: string
+      status:
+        | { __typename: 'CategoryStatusActive' }
+        | { __typename: 'CategoryStatusArchived' }
+        | { __typename: 'CategoryStatusRemoved' }
+    }
   }
 }
 
@@ -1669,7 +1681,19 @@ export type GetLatestForumPostsQuery = {
       id: string
       title: string
       categoryId: string
-      category: { __typename: 'ForumCategory'; title: string }
+      status:
+        | { __typename: 'ThreadStatusActive' }
+        | { __typename: 'ThreadStatusLocked' }
+        | { __typename: 'ThreadStatusModerated' }
+        | { __typename: 'ThreadStatusRemoved' }
+      category: {
+        __typename: 'ForumCategory'
+        title: string
+        status:
+          | { __typename: 'CategoryStatusActive' }
+          | { __typename: 'CategoryStatusArchived' }
+          | { __typename: 'CategoryStatusRemoved' }
+      }
     }
   }>
 }
@@ -1927,8 +1951,14 @@ export const ForumPostWithThreadFieldsFragmentDoc = gql`
       id
       title
       categoryId
+      status {
+        __typename
+      }
       category {
         title
+        status {
+          __typename
+        }
       }
     }
   }
