@@ -58,10 +58,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Contributors
 - [Create](/goldstarhigher)
 - [L1 Media](/traumschule)
-- [Lexek Wiesner](/lezek123)
+- [Lezek Wiesner](/lezek123)
 - [Mkbeefcake](/Mkbeefcake)
-- [Oleksandr Korn](/oleksanderkorn)
-- [Theopgile Sandoz](/thesan)
+- [Oleksander Korn](/oleksanderkorn)
+- [Theophile Sandoz](/thesan)
 
 ## [3.8.0] - 2025-04-15
 

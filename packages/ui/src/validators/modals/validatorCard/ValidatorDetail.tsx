@@ -1,24 +1,30 @@
+import BN from 'bn.js'
 import React from 'react'
+import { combineLatest, first, map, of, switchMap } from 'rxjs'
 import styled from 'styled-components'
 
-import { ButtonPrimary, ButtonSecondary, ButtonGhost } from '@/common/components/buttons'
+import { useApi } from '@/api/hooks/useApi'
+import { ButtonPrimary } from '@/common/components/buttons'
 import { MarkdownPreview } from '@/common/components/MarkdownPreview'
 import { ModalFooter } from '@/common/components/Modal'
 import { RowGapBlock } from '@/common/components/page/PageContent'
 import { SidePaneBody, SidePaneLabel, SidePaneRow, SidePaneText } from '@/common/components/SidePane'
 import { NumericValueStat, StatisticsThreeColumns, TokenValueStat } from '@/common/components/statistics'
-import { TextSmall } from '@/common/components/typography'
+import { TextSmall, TokenValue } from '@/common/components/typography'
 import { BN_ZERO } from '@/common/constants'
 import { plural } from '@/common/helpers'
 import { useModal } from '@/common/hooks/useModal'
+import { useObservable } from '@/common/hooks/useObservable'
 import { whenDefined } from '@/common/utils'
 import RewardPointsChart from '@/validators/components/RewardPointChart'
+import { useSelectedValidators } from '@/validators/context/SelectedValidatorsContext'
+import { useClaimAllNavigation } from '@/validators/hooks/useClaimAllNavigation'
+import { useMyStashPositions } from '@/validators/hooks/useMyStashPositions'
 
 import { ValidatorWithDetails } from '../../types'
 import { BondModalCall } from '../BondModal'
 import { NominateValidatorModalCall } from '../NominateValidatorModal'
 import { NominatingRedirectModalCall } from '../NominatingRedirectModal'
-import { PayoutModalCall } from '../PayoutModal'
 import { StakeModalCall } from '../StakeModal'
 import { UnbondModalCall } from '../UnbondModal'
 
@@ -26,15 +32,54 @@ interface Props {
   validator: ValidatorWithDetails
   eraIndex: number | undefined
   hideModal: () => void
+  isNominated?: boolean
 }
 
-export const ValidatorDetail = ({ validator, eraIndex, hideModal }: Props) => {
+export const ValidatorDetail = ({ validator, eraIndex, hideModal, isNominated = false }: Props) => {
+  const { api } = useApi()
+  const stashPositions = useMyStashPositions()
   const { showModal } = useModal<NominatingRedirectModalCall>()
   const { showModal: showNominateModal } = useModal<NominateValidatorModalCall>()
   const { showModal: showStakeModal } = useModal<StakeModalCall>()
   const { showModal: showBondModal } = useModal<BondModalCall>()
   const { showModal: showUnbondModal } = useModal<UnbondModalCall>()
-  const { showModal: showPayoutModal } = useModal<PayoutModalCall>()
+  const { isSelected, toggleSelection, selectedValidators, maxSelection } = useSelectedValidators()
+  const openClaimAllModal = useClaimAllNavigation()
+
+  // Get stake amount for this nominated validator
+  const nominatedStake = useObservable<BN | undefined>(() => {
+    if (!api || !isNominated || !stashPositions) return of(undefined)
+
+    // Find stash positions that nominate this validator
+    const nominatingStashes = stashPositions.filter((pos) => pos.nominations.includes(validator.stashAccount))
+    if (nominatingStashes.length === 0) return of(undefined)
+
+    // Get current era and query exposures
+    return api.query.staking.activeEra().pipe(
+      first(),
+      switchMap((activeEra) => {
+        if (activeEra.isNone) return of(undefined)
+        const currentEra = activeEra.unwrap().index.toNumber()
+
+        // Query exposures for all nominating stashes
+        const exposureQueries = nominatingStashes.map((pos) =>
+          api.query.staking.erasStakers(currentEra, validator.stashAccount).pipe(
+            first(),
+            map((exposure) => {
+              if (!exposure || exposure.isEmpty) return BN_ZERO
+              const nominatorExposure = exposure.others.find((other) => other.who.toString() === pos.stash)
+              return nominatorExposure ? nominatorExposure.value.toBn() : BN_ZERO
+            })
+          )
+        )
+
+        return combineLatest(exposureQueries).pipe(
+          first(),
+          map((stakes) => stakes.reduce((sum, stake) => sum.add(stake), BN_ZERO))
+        )
+      })
+    )
+  }, [api?.isConnected, isNominated, validator.stashAccount, stashPositions])
 
   const uptime = whenDefined(validator.rewardPointsHistory, (rewardPointsHistory) => {
     const firstEra = rewardPointsHistory.at(0)?.era
@@ -44,31 +89,43 @@ export const ValidatorDetail = ({ validator, eraIndex, hideModal }: Props) => {
     return `${((validatedEra / totalEras) * 100).toFixed(1)}%`
   })
 
-  const handleActionClick = (action: string) => {
+  const isValidatorSelected = isSelected(validator)
+  const canSelect = !isValidatorSelected && selectedValidators.length < maxSelection
+
+  const handleActionClick = async (action: string) => {
     const validatorAddress = validator.stashAccount
-    
+
     switch (action) {
+      case 'Select':
+        toggleSelection(validator)
+        break
       case 'Nominate':
+        await new Promise((resolve) => setTimeout(resolve, 0)) // Make async
         hideModal()
         showNominateModal({ modal: 'NominateValidator', data: { validatorAddress } })
         break
       case 'Stake':
+        await new Promise((resolve) => setTimeout(resolve, 0)) // Make async
         hideModal()
         showStakeModal({ modal: 'Stake', data: { validatorAddress } })
         break
       case 'Bond':
+        await new Promise((resolve) => setTimeout(resolve, 0)) // Make async
         hideModal()
         showBondModal({ modal: 'Bond', data: { validatorAddress } })
         break
       case 'Unbond':
+        await new Promise((resolve) => setTimeout(resolve, 0)) // Make async
         hideModal()
         showUnbondModal({ modal: 'Unbond', data: { validatorAddress } })
         break
       case 'Payout':
+        await new Promise((resolve) => setTimeout(resolve, 0)) // Make async
         hideModal()
-        showPayoutModal({ modal: 'Payout', data: { validatorAddress } })
+        openClaimAllModal()
         break
       default:
+        await new Promise((resolve) => setTimeout(resolve, 0)) // Make async
         hideModal()
         showModal({ modal: 'NominatingRedirect' })
     }
@@ -138,36 +195,30 @@ export const ValidatorDetail = ({ validator, eraIndex, hideModal }: Props) => {
       </SidePaneBody>
       <ModalFooter>
         <ActionButtonsContainer>
-          <ButtonPrimary
-            size="small"
-            onClick={() => handleActionClick('Nominate')}
-          >
-            Nominate
-          </ButtonPrimary>
-          <ButtonSecondary
-            size="small"
-            onClick={() => handleActionClick('Stake')}
-          >
-            Stake
-          </ButtonSecondary>
-          <ButtonGhost
-            size="small"
-            onClick={() => handleActionClick('Bond')}
-          >
-            Bond
-          </ButtonGhost>
-          <ButtonGhost
-            size="small"
-            onClick={() => handleActionClick('Unbond')}
-          >
-            Unbond
-          </ButtonGhost>
-          <ButtonGhost
-            size="small"
-            onClick={() => handleActionClick('Payout')}
-          >
-            Payout
-          </ButtonGhost>
+          {isNominated ? (
+            <div>
+              <TextSmall lighter>Nominated</TextSmall>
+              {nominatedStake && !nominatedStake.isZero() && <TokenValue size="xs" value={nominatedStake} />}
+            </div>
+          ) : isValidatorSelected ? (
+            <ButtonPrimary
+              size="small"
+              onClick={() => handleActionClick('Select')}
+              disabled={true}
+              title="This validator is already selected for nomination."
+            >
+              Selected
+            </ButtonPrimary>
+          ) : (
+            <ButtonPrimary
+              size="small"
+              onClick={() => handleActionClick('Select')}
+              disabled={!canSelect}
+              title={canSelect ? 'Select this validator for nomination' : 'Maximum number of validators selected'}
+            >
+              {canSelect ? 'Select' : 'Max Reached'}
+            </ButtonPrimary>
+          )}
         </ActionButtonsContainer>
       </ModalFooter>
     </>
@@ -211,4 +262,5 @@ const ActionButtonsContainer = styled.div`
   justify-content: flex-start;
   align-items: center;
   width: 100%;
+  position: relative;
 `

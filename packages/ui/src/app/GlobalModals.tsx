@@ -1,5 +1,5 @@
 import { get } from 'lodash'
-import React, { memo, ReactElement, useEffect, useMemo, useState } from 'react'
+import React, { memo, ReactElement, useEffect, useMemo, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
 import styled from 'styled-components'
 
@@ -70,11 +70,20 @@ import { VoteForProposalModal, VoteForProposalModalCall } from '@/proposals/moda
 import { VoteRationaleModalCall } from '@/proposals/modals/VoteRationale/types'
 import { VoteRationale } from '@/proposals/modals/VoteRationale/VoteRationale'
 import { BondModal, BondModalCall } from '@/validators/modals/BondModal'
-import { NominateValidatorModal, NominateValidatorModalCall } from '@/validators/modals/NominateValidatorModal'
+import { ChangeSessionKeysModal, ChangeSessionKeysModalCall } from '@/validators/modals/ChangeSessionKeysModal'
+import { ClaimStakingRewardsModal, ClaimStakingRewardsModalCall } from '@/validators/modals/ClaimStakingRewardsModal'
+import { ManageStashActionModal, ManageStashActionModalCall } from '@/validators/modals/ManageStashActionModal'
+import { NominateValidatorModal } from '@/validators/modals/NominateValidatorModal'
+import { NominateValidatorModalCall } from '@/validators/modals/NominateValidatorModal/types'
 import { NominatingRedirectModal, NominatingRedirectModalCall } from '@/validators/modals/NominatingRedirectModal'
-import { PayoutModal, PayoutModalCall } from '@/validators/modals/PayoutModal'
+import { RebagModal, RebagModalCall } from '@/validators/modals/RebagModal'
+import { RebondModal, RebondModalCall } from '@/validators/modals/RebondModal'
+import { SetNomineesModal, SetNomineesModalCall } from '@/validators/modals/SetNomineesModal'
 import { StakeModal, StakeModalCall } from '@/validators/modals/StakeModal'
+import { StopStakingModal, StopStakingModalCall } from '@/validators/modals/StopStakingModal'
 import { UnbondModal, UnbondModalCall } from '@/validators/modals/UnbondModal'
+import { UnbondStakingModal, UnbondStakingModalCall } from '@/validators/modals/UnbondStakingModal'
+import { ValidateModal, ValidateModalCall } from '@/validators/modals/ValidateModal'
 import { ApplicationDetailsModal, ApplicationDetailsModalCall } from '@/working-groups/modals/ApplicationDetailsModal'
 import { ApplyForRoleModal, ApplyForRoleModalCall } from '@/working-groups/modals/ApplyForRoleModal'
 import { ChangeAccountModal, ChangeAccountModalCall } from '@/working-groups/modals/ChangeAccountModal'
@@ -85,7 +94,7 @@ import {
 } from '@/working-groups/modals/IncreaseWorkerStakeModal'
 import { LeaveRoleModal, LeaveRoleModalCall } from '@/working-groups/modals/LeaveRoleModal'
 
-export type ModalNames =
+type ModalNamesBase =
   | ModalName<TransferInvitesModalCall>
   | ModalName<MemberModalCall>
   | ModalName<BuyMembershipModalCall>
@@ -137,12 +146,22 @@ export type ModalNames =
   | ModalName<EmailSubscriptionModalCall>
   | ModalName<EmailConfirmationModalCall>
   | ModalName<NominatingRedirectModalCall>
-  | ModalName<NominateValidatorModalCall>
-  | ModalName<StakeModalCall>
   | ModalName<BondModalCall>
   | ModalName<UnbondModalCall>
-  | ModalName<PayoutModalCall>
+  | ModalName<ClaimStakingRewardsModalCall>
+  | ModalName<ManageStashActionModalCall>
+  | ModalName<SetNomineesModalCall>
+  | ModalName<StopStakingModalCall>
+  | ModalName<UnbondStakingModalCall>
+  | ModalName<NominateValidatorModalCall>
+  | ModalName<StakeModalCall>
+  | ModalName<ValidateModalCall>
+  | ModalName<RebagModalCall>
+  | ModalName<RebondModalCall>
+  | ModalName<ChangeSessionKeysModalCall>
   | ModalName<CancelProposalModalCall>
+
+export type ModalNames = Extract<ModalNamesBase, string>
 
 const modals: Record<ModalNames, ReactElement> = {
   Member: <MemberProfile />,
@@ -196,12 +215,20 @@ const modals: Record<ModalNames, ReactElement> = {
   EmailSubscriptionModal: <EmailSubscriptionModal />,
   EmailConfirmationModal: <EmailConfirmationModal />,
   NominatingRedirect: <NominatingRedirectModal />,
-  NominateValidator: <NominateValidatorModal />,
-  Stake: <StakeModal />,
   Bond: <BondModal />,
   Unbond: <UnbondModal />,
-  Payout: <PayoutModal />,
+  NominateValidator: <NominateValidatorModal />,
+  Stake: <StakeModal />,
+  StopStakingModal: <StopStakingModal />,
+  UnbondStakingModal: <UnbondStakingModal />,
+  Validate: <ValidateModal />,
+  Rebag: <RebagModal />,
+  Rebond: <RebondModal />,
   CancelProposalModal: <CancelProposalModal />,
+  ClaimStakingRewardsModal: <ClaimStakingRewardsModal />,
+  ManageStashActionModal: <ManageStashActionModal />,
+  SetNomineesModal: <SetNomineesModal />,
+  ChangeSessionKeysModal: <ChangeSessionKeysModal />,
 }
 
 const GUEST_ACCESSIBLE_MODALS: ModalNames[] = [
@@ -218,6 +245,12 @@ const GUEST_ACCESSIBLE_MODALS: ModalNames[] = [
   'RecoverBalance',
   'DisconnectWallet',
   'ClaimVestingModal',
+  'ClaimStakingRewardsModal',
+  'ManageStashActionModal',
+  'SetNomineesModal',
+  'ChangeSessionKeysModal',
+  'StopStakingModal',
+  'UnbondStakingModal',
   'ReportContentModal',
   'EmailConfirmationModal',
   'VoteRationaleModal',
@@ -247,6 +280,12 @@ export const GlobalModals = () => {
   const { status } = useTransactionStatus()
   const Modal = useMemo(() => (modal && modal in modals ? memo(() => modals[modal as ModalNames]) : null), [modal])
   const { wallet } = useMyAccounts()
+  const redirectAttemptedRef = React.useRef<string | null>(null)
+  const showModalRef = React.useRef(showModal)
+
+  useEffect(() => {
+    showModalRef.current = showModal
+  }, [showModal])
 
   const [container, setContainer] = useState(document.body)
   useEffect(() => {
@@ -256,20 +295,40 @@ export const GlobalModals = () => {
 
   const potentialFallback = useGlobalModalHandler(currentModalMachine, hideModal)
 
-  if (modal && !GUEST_ACCESSIBLE_MODALS.includes(modal as ModalNames) && !activeMember) {
-    if (wallet) {
-      showModal<SwitchMemberModalCall>({
-        modal: 'SwitchMember',
-        data: {
-          originalModalName: modal as ModalNames,
-          originalModalData: modalData,
-        },
-      })
-    } else {
-      showModal({
-        modal: 'OnBoardingModal',
-      })
+  useEffect(() => {
+    if (!modal || GUEST_ACCESSIBLE_MODALS.includes(modal as ModalNames) || activeMember) {
+      redirectAttemptedRef.current = null
+      return
     }
+
+    if (modal === 'SwitchMember' || modal === 'OnBoardingModal') {
+      return
+    }
+
+    if (redirectAttemptedRef.current === modal) {
+      return
+    }
+
+    redirectAttemptedRef.current = modal
+
+    setTimeout(() => {
+      if (wallet) {
+        showModalRef.current({
+          modal: 'SwitchMember',
+          data: {
+            originalModalName: modal as ModalNames,
+            originalModalData: modalData,
+          },
+        } as SwitchMemberModalCall)
+      } else {
+        showModalRef.current({
+          modal: 'OnBoardingModal',
+        })
+      }
+    }, 0)
+  }, [modal, activeMember, wallet, modalData])
+
+  if (modal && !GUEST_ACCESSIBLE_MODALS.includes(modal as ModalNames) && !activeMember) {
     return null
   }
 
@@ -301,30 +360,66 @@ const SpinnerGlass = styled(ModalGlass)`
 `
 
 const useGlobalModalHandler = (machine: UnknownMachine<any, any, any> | undefined, hideModal: () => void) => {
-  if (!machine) return null
+  const [fallback, setFallback] = useState<ReactElement | null>(null)
+  const prevStateValueRef = useRef<string | undefined>(undefined)
+  const hideModalRef = useRef(hideModal)
 
-  const [state, send] = machine
+  useEffect(() => {
+    hideModalRef.current = hideModal
+  }, [hideModal])
 
-  if (state.matches('canceled')) {
-    const backTarget = state.meta?.['(machine).canceled']?.backTarget
-    backTarget ? send(backTarget) : hideModal()
-  }
+  useEffect(() => {
+    if (!machine) {
+      setFallback(null)
+      prevStateValueRef.current = undefined
+      return
+    }
 
-  if (state.matches('error') && get(state.meta, ['(machine).error', 'message'])) {
-    return (
-      <FailureModal onClose={hideModal} events={state.context.transactionEvents}>
-        {get(state.meta, ['(machine).error', 'message'])}
-      </FailureModal>
-    )
-  }
+    const [state, send] = machine
+    const currentStateValue = state.value.toString()
 
-  if (state.matches('success') && get(state.meta, ['(machine).success', 'message'])) {
-    return <SuccessModal onClose={hideModal} text={get(state.meta, ['(machine).success', 'message'])} />
-  }
+    if (prevStateValueRef.current === currentStateValue) {
+      return
+    }
 
-  if (state.matches('requirementsVerification')) {
-    return <LoaderModal onClose={hideModal} />
-  }
+    prevStateValueRef.current = currentStateValue
 
-  return null
+    if (state.matches('canceled')) {
+      const backTarget = state.meta?.['(machine).canceled']?.backTarget
+      if (backTarget) {
+        send(backTarget)
+      } else {
+        setTimeout(() => {
+          hideModalRef.current()
+        }, 0)
+      }
+      setFallback(null)
+      return
+    }
+
+    if (state.matches('error') && get(state.meta, ['(machine).error', 'message'])) {
+      setFallback(
+        <FailureModal onClose={hideModalRef.current} events={state.context.transactionEvents}>
+          {get(state.meta, ['(machine).error', 'message'])}
+        </FailureModal>
+      )
+      return
+    }
+
+    if (state.matches('success') && get(state.meta, ['(machine).success', 'message'])) {
+      setFallback(
+        <SuccessModal onClose={hideModalRef.current} text={get(state.meta, ['(machine).success', 'message'])} />
+      )
+      return
+    }
+
+    if (state.matches('requirementsVerification')) {
+      setFallback(<LoaderModal onClose={hideModalRef.current} />)
+      return
+    }
+
+    setFallback(null)
+  }, [machine])
+
+  return fallback
 }
