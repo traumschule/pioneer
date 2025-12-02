@@ -52,7 +52,7 @@ export function Nominators() {
           switchMap(([nominations, bonded]) => {
             const isNominating = !nominations.isEmpty
             const targets = isNominating ? nominations.unwrap().targets.map((target) => target.toString()) : []
-            
+
             if (bonded.isNone) {
               return of({
                 address: account.address,

@@ -259,7 +259,6 @@ const GUEST_ACCESSIBLE_MODALS: ModalNames[] = [
   'Stake',
   'Bond',
   'Unbond',
-  'Payout',
   'CreateOpening',
   'LeaveRole',
 ]

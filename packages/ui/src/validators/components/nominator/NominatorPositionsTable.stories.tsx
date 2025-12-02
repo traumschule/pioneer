@@ -323,10 +323,10 @@ WithNominationsTooltip.parameters = {
             const stashAddress = 'j4VdDQVdwFYfQ2MvEdLT2EYZx4ALPQQ6yMyZopKoZEQmXcJrT'
             const validator1 = 'j4W7rVcUCxi2crhhjRq46fNDRbVHTjJrz6bKxZwehEMQxZeSf'
             const validator2 = 'j4UYhDYJ4pz2ihhDDzu69v2JTVeGaGmTebmBdWaX2ANVinXyE'
-            
+
             // Convert validatorAddress to string for comparison
             const validatorStr = validatorAddress?.toString() || validatorAddress
-            
+
             // Return different stake amounts for different validators
             let stakeAmount = '30000000000000' // 30,000 JOY default
             if (validatorStr === validator1) {
@@ -334,7 +334,7 @@ WithNominationsTooltip.parameters = {
             } else if (validatorStr === validator2) {
               stakeAmount = '30000000000000' // 30,000 JOY
             }
-            
+
             return {
               isEmpty: false,
               total: '100000000000000',
