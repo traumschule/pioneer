@@ -21,7 +21,7 @@ export const CreatePostModal = () => {
   const { module = 'forum', postText, transaction, isEditable, onSuccess } = modalData
 
   const [state, send] = useMachine(
-    defaultTransactionModalMachine('There was a problem posting your message.', undefined),
+    defaultTransactionModalMachine('There was a problem posting your message.', 'Your post has been submitted.'),
     { context: { validateBeforeTransaction: true } }
   )
 
