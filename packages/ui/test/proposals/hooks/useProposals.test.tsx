@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { renderHook } from '@testing-library/react-hooks'
 import React from 'react'
 
@@ -32,12 +31,6 @@ describe('useProposals', () => {
     it('Status: active', async () => {
       const result = await loadUseProposals({ status: 'active' })
       expect(result.proposals.length).toBeGreaterThan(0)
-      console.log('proposalActiveStatuses:', proposalActiveStatuses)
-      console.log(
-        'Actual proposal statuses:',
-        result.proposals.map((p) => p.status)
-      )
-
       result.proposals.forEach((proposal) => {
         expect(proposalActiveStatuses.includes(proposal.status)).toBeTruthy()
       })

@@ -10,6 +10,7 @@ export const proposalPastStatuses: ProposalStatus[] = [
   'expired',
   'cancelled',
   'canceledByRuntime',
+  'vetoed'
 ]
 
 export const isProposalActive = (status: ProposalStatus) => proposalActiveStatuses.includes(status)
