@@ -172,12 +172,12 @@ export const TestsFilters: Story = {
       await selectFromDropdown(screen, stateFilter, 'active')
       await waitFor(() => expect(screen.queryAllByRole('button', { name: 'Nominate' })).toHaveLength(3))
       await userEvent.click(screen.getByText('Clear all filters'))
-      //await waitFor(() => expect(screen.queryAllByRole('button', { name: 'Nominate' })).toHaveLength(7))
+      await waitFor(() => expect(screen.queryAllByRole('button', { name: 'Nominate' })).toHaveLength(7))
       await userEvent.type(searchElement, 'alice{enter}')
       await waitFor(() => expect(screen.queryAllByRole('button', { name: 'Nominate' })).toHaveLength(2))
       expect(screen.queryByText('Clear all filters'))
       await userEvent.click(screen.getByText('Clear all filters'))
-      //await waitFor(() => expect(screen.queryAllByRole('button', { name: 'Nominate' })).toHaveLength(7))
+      await waitFor(() => expect(screen.queryAllByRole('button', { name: 'Nominate' })).toHaveLength(7))
     })
 
     await step('Sort', async () => {
