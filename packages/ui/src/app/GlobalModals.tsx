@@ -93,6 +93,7 @@ import {
   IncreaseWorkerStakeModalCall,
 } from '@/working-groups/modals/IncreaseWorkerStakeModal'
 import { LeaveRoleModal, LeaveRoleModalCall } from '@/working-groups/modals/LeaveRoleModal'
+import { PayWorkerModal, PayWorkerModalCall } from '@/working-groups/modals/PayWorkerModal'
 
 type ModalNamesBase =
   | ModalName<TransferInvitesModalCall>
@@ -124,6 +125,7 @@ type ModalNamesBase =
   | ModalName<RevealVoteModalCall>
   | ModalName<RecoverBalanceModalCall>
   | ModalName<IncreaseWorkerStakeModalCall>
+  | ModalName<PayWorkerModalCall>
   | ModalName<OnBoardingModalCall>
   | ModalName<RestoreVotesModalCall>
   // | ModalName<AddBountyModalCall>
@@ -193,6 +195,7 @@ const modals: Record<ModalNames, ReactElement> = {
   RevealVote: <RevealVoteModal />,
   RecoverBalance: <RecoverBalanceModal />,
   IncreaseWorkerStake: <IncreaseWorkerStakeModal />,
+  PayWorker: <PayWorkerModal />,
   InviteMemberModal: <InviteMemberModal />,
   OnBoardingModal: <OnBoardingModal />,
   RestoreVotes: <RestoreVotesModal />,
