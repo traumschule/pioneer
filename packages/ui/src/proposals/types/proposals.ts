@@ -23,7 +23,6 @@ export type ProposalStatus =
   | 'expired'
   | 'cancelled'
   | 'canceledByRuntime'
-  | 'vetoed'
 
 type CurrentProposalStatus = Extract<ProposalStatus, 'deciding' | 'gracing' | 'dormant'>
 const currentProposalStatusArray: CurrentProposalStatus[] = ['deciding', 'dormant', 'gracing']
