@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { renderHook } from '@testing-library/react-hooks'
 import React from 'react'
 
@@ -31,6 +32,7 @@ describe('useProposals', () => {
     it('Status: active', async () => {
       const result = await loadUseProposals({ status: 'active' })
       expect(result.proposals.length).toBeGreaterThan(0)
+      console.log('The proposals logged are === ', result.proposals)
       result.proposals.forEach((proposal) => {
         expect(proposalActiveStatuses.includes(proposal.status)).toBeTruthy()
       })
