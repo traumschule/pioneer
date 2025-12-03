@@ -438,7 +438,11 @@ describe('UI: Mention', () => {
 
     beforeEach(() => {
       jest.clearAllMocks()
-      render(<ProposalDiscussionEntryTooltip {...props} />)
+      render(
+        <MockApolloProvider>
+          <ProposalDiscussionEntryTooltip {...props} />
+        </MockApolloProvider>
+      )
     })
 
     it('should render component', () => {
@@ -446,12 +450,20 @@ describe('UI: Mention', () => {
     })
 
     it('should mount loader when no mention was provided', () => {
-      render(<ProposalDiscussionEntryTooltip {...props} mention={undefined} />)
+      render(
+        <MockApolloProvider>
+          <ProposalDiscussionEntryTooltip {...props} mention={undefined} />
+        </MockApolloProvider>
+      )
       expect(loaderSelector()).toBeInTheDocument()
     })
 
     it('should call onMount when no mention was provided', () => {
-      render(<ProposalDiscussionEntryTooltip {...props} mention={undefined} />)
+      render(
+        <MockApolloProvider>
+          <ProposalDiscussionEntryTooltip {...props} mention={undefined} />
+        </MockApolloProvider>
+      )
       expect(onMount).toHaveBeenCalledTimes(1)
     })
 
