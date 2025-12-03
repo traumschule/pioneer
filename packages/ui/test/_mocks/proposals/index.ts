@@ -142,4 +142,25 @@ export const testProposals: ProposalMock[] = [
       },
     },
   },
+  {
+    ...baseMock,
+    id: '8',
+    title: 'Deciding Proposal Two',
+    status: 'deciding',
+    createdAt: '2021-07-21T10:00:00.000Z',
+    statusSetAtTime: '2021-07-24T10:00:00.000Z',
+    details: {
+      type: 'fundingRequest',
+      data: {
+        destinationsList: {
+          destinations: [
+            {
+              account: '5GETSBUMwbLJgUTWMQgU8B2CP7E8kDHR8NoNNZh5tqums9AF',
+              amount: 5000,
+            },
+          ],
+        },
+      },
+    },
+  },
 ]
